@@ -24,7 +24,7 @@ func TestEncodeIndex(t *testing.T) {
 				Address:         common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"),
 				SecondaryFiller: "",
 			},
-			expected:  "759388MMStat/2.0.0c57d6d57fca59d0517038c968a1b831b071fa67900153000",
+			expected:  "759388MMStat/2.0.0C57D6D57fcA59d0517038c968A1b831B071FA67900153000",
 			expectErr: false,
 		},
 		{
@@ -36,7 +36,7 @@ func TestEncodeIndex(t *testing.T) {
 				Address:         common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"),
 				SecondaryFiller: "99",
 			},
-			expected:  "759388XXStat/2.0.0c57d6d57fca59d0517038c968a1b831b071fa67999153000",
+			expected:  "759388XXStat/2.0.0C57D6D57fcA59d0517038c968A1b831B071FA67999153000",
 			expectErr: false,
 		},
 		{
@@ -72,7 +72,7 @@ func TestEncodeIndex(t *testing.T) {
 				Address:         common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"),
 				SecondaryFiller: "00",
 			},
-			expected:  "799397MM000000Statc57d6d57fca59d0517038c968a1b831b071fa67900153000",
+			expected:  "799397MM000000StatC57D6D57fcA59d0517038c968A1b831B071FA67900153000",
 			expectErr: false,
 		},
 		{

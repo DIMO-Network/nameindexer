@@ -98,11 +98,11 @@ func EncodeIndex(index *Index) (string, error) {
 
 	// Construct the index string
 	encodedIndex := fmt.Sprintf(
-		"%06d%s%s%x%s%s",
+		"%06d%s%s%s%s%s",
 		datePart,
 		index.PrimaryFiller,
 		index.DataType,
-		index.Address.Bytes(),
+		index.Address.Hex()[2:], // Remove "0x" prefix
 		index.SecondaryFiller,
 		timePart,
 	)
