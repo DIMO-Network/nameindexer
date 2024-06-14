@@ -98,9 +98,27 @@ func (s Subject) Value() (string, error) {
 	return s.String(), nil
 }
 
+// Scan satisfies sql.Scanner interface for Subject.
+func (s *Subject) Scan(value any) error {
+	if value == nil {
+		return nil
+	}
+	switch v := value.(type) {
+	case string:
+		subject, err := DecodeSubject(v)
+		if err != nil {
+			return err
+		}
+		*s = subject
+		return nil
+	default:
+		return InvalidError("invalid subject type")
+	}
+}
+
 // DecodeSubject decodes a string into a subject.
 func DecodeSubject(encoded string) (Subject, error) {
-	if strings.HasPrefix(encoded, "T") {
+	if strings.HasPrefix(encoded, "T") && len(encoded) > 1 {
 		tokenID64, err := strconv.ParseUint(encoded[1:], 10, 32)
 		if err != nil {
 			return Subject{}, fmt.Errorf("token ID: %w", err)
@@ -109,7 +127,7 @@ func DecodeSubject(encoded string) (Subject, error) {
 		return Subject{TokenID: &tokenID}, nil
 	}
 
-	address := common.HexToAddress("0x" + encoded)
+	address := common.HexToAddress(encoded)
 	return Subject{Address: &address}, nil
 }
 
