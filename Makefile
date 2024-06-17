@@ -1,5 +1,9 @@
-.PHONY: clean run build install dep test lint format docker
-export PATH := $(abspath bin/):${PATH}
+.PHONY: clean run build install dep test lint format docker migration tools tools-golangci-lint tools-model-garage
+
+# Set the bin path
+PATHINSTBIN = $(abspath ./bin)
+export PATH := $(PATHINSTBIN):$(PATH)
+
 BIN_NAME					?= nameindexer
 DEFAULT_INSTALL_DIR			:= $(go env GOPATH)/bin
 DEFAULT_ARCH				:= $(shell go env GOARCH)
@@ -15,6 +19,7 @@ VER_CUT   := $(shell echo $(VERSION) | cut -c2-)
 
 # Dependency versions
 GOLANGCI_VERSION   = v1.56.2
+CLICKHOUSE_INFRA_VERSION = $(shell go list -m -f '{{.Version}}' github.com/DIMO-Network/clickhouse-infra)
 
 help:
 	@echo "\nSpecify a subcommand:\n"
@@ -24,13 +29,13 @@ help:
 
 build: ## Build the code
 	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(ARCH) \
-		go build -o bin/$(BIN_NAME) ./cmd/$(BIN_NAME)
+		go build -o $(PATHINSTBIN)/$(BIN_NAME) ./cmd/$(BIN_NAME)
 
 
 all: clean target
 
 clean: ## Clean the project binaries
-	@rm -rf bin
+	@rm -rf $(PATHINSTBIN)
 	
 
 tidy:  ## tidy the go modules
@@ -45,8 +50,15 @@ lint: ## Run the linter
 format: ## Run the linter with fix
 	@golangci-lint run --fix
 
+migration: ## Generate migration file specify name with name=your_migration_name
+	migration -output=./pkg/migrations -package=migrations -filename="${name}"
+
+tools: tools-golangci-lint tools-model-garage ## Install all tools
+
 tools-golangci-lint: ## Install golangci-lint
-	@mkdir -p bin
+	@mkdir -p $(PATHINSTBIN)
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | BINARY=golangci-lint bash -s -- ${GOLANGCI_VERSION}
 
-tools: tools-golangci-lint  ## Install all tools
+tools-migration: ## Install migration tool
+	@mkdir -p $(PATHINSTBIN)
+	GOBIN=$(PATHINSTBIN) go install github.com/DIMO-Network/clickhouse-infra/cmd/migration@${CLICKHOUSE_INFRA_VERSION}
