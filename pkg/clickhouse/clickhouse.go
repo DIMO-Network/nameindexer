@@ -7,7 +7,6 @@ import (
 const (
 	// TableName is the name of the table in Clickhouse.
 	TableName = "name_index"
-
 	// TimestampColumn is the name of the timestamp column in Clickhouse.
 	TimestampColumn = "timestamp"
 	// PrimaryFillerColumn is the name of the primary filler column in Clickhouse.

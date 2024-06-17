@@ -53,7 +53,7 @@ format: ## Run the linter with fix
 migration: ## Generate migration file specify name with name=your_migration_name
 	migration -output=./pkg/migrations -package=migrations -filename="${name}"
 
-tools: tools-golangci-lint tools-model-garage ## Install all tools
+tools: tools-golangci-lint tools-migration ## Install all tools
 
 tools-golangci-lint: ## Install golangci-lint
 	@mkdir -p $(PATHINSTBIN)
