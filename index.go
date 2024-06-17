@@ -17,8 +17,8 @@ const (
 	PrimaryFillerLength = 2
 	// DataTypeLength is the length of the data type part in the index string.
 	DataTypeLength = 10
-	// AddressLength is the length of the address part in the index string.
-	AddressLength = 40
+	// SubjectLenth is the length of the subject part in the index string.
+	SubjectLenth = 40
 	// SecondaryFillerLength is the length of the secondary filler part in the index string.
 	SecondaryFillerLength = 2
 	// TimeLength is the length of the time part in the index string.
@@ -30,14 +30,14 @@ const (
 	PrimaryFillerStart = DateStart + DateLength
 	// DataTypeStart is the starting position of the data type part in the index string.
 	DataTypeStart = PrimaryFillerStart + PrimaryFillerLength
-	// AddressStart is the starting position of the address part in the index string.
-	AddressStart = DataTypeStart + DataTypeLength
+	// SubjectStart is the starting position of the subject part in the index string.
+	SubjectStart = DataTypeStart + DataTypeLength
 	// SecondaryFillerStart is the starting position of the secondary filler part in the index string.
-	SecondaryFillerStart = AddressStart + AddressLength
+	SecondaryFillerStart = SubjectStart + SubjectLenth
 	// TimeStart is the starting position of the time part in the index string.
 	TimeStart = SecondaryFillerStart + SecondaryFillerLength
 	// TotalLength is the total length of the index string.
-	TotalLength = DateLength + PrimaryFillerLength + DataTypeLength + AddressLength + SecondaryFillerLength + TimeLength
+	TotalLength = DateLength + PrimaryFillerLength + DataTypeLength + SubjectLenth + SecondaryFillerLength + TimeLength
 
 	// DateMax is the maximum value used for date calculations in the index.
 	DateMax = 999999
@@ -46,7 +46,7 @@ const (
 
 	// DefaultPrimaryFiller is the default filler value between the date and data type.
 	DefaultPrimaryFiller = "MM"
-	// DefaultSecondaryFiller is the default filler value between the address and time.
+	// DefaultSecondaryFiller is the default filler value between the subject and time.
 	DefaultSecondaryFiller = "00"
 )
 
@@ -66,22 +66,81 @@ type Index struct {
 	PrimaryFiller string
 	// DataType is the type of data, left-padded with zeros or truncated to 10 characters.
 	DataType string
-	// Address is the Ethereum address of the device.
-	Address common.Address
-	// SecondaryFiller is the filler value between the address and time, typically "00". If empty, defaults to "00".
+	// Subject is the subject of the data represented by the index.
+	Subject Subject
+	// SecondaryFiller is the filler value between the subject and time, typically "00". If empty, defaults to "00".
 	SecondaryFiller string
+}
+
+// Subject represents the subject of the data represented by the index.
+// The subject can be an Ethereum address or a token ID.
+// if both are set, the address is used.
+type Subject struct {
+	// Address is the Ethereum address of the device.
+	Address *common.Address
+	// TokenID is the token ID of the device.
+	TokenID *uint32
+}
+
+// String encodes a subject into a string and satisfies the fmt.Stringer interface.
+func (s Subject) String() string {
+	if s.Address != nil {
+		return s.Address.Hex()[2:] // Remove "0x" prefix
+	}
+	if s.TokenID != nil {
+		return fmt.Sprintf("T%0*d", SubjectLenth-1, *s.TokenID)
+	}
+	return ""
+}
+
+// Value satisfies sql/driver.Valuer interface for Subject.
+func (s Subject) Value() (string, error) {
+	return s.String(), nil
+}
+
+// Scan satisfies sql.Scanner interface for Subject.
+func (s *Subject) Scan(value any) error {
+	if value == nil {
+		return nil
+	}
+	switch v := value.(type) {
+	case string:
+		subject, err := DecodeSubject(v)
+		if err != nil {
+			return err
+		}
+		*s = subject
+		return nil
+	default:
+		return InvalidError("invalid subject type")
+	}
+}
+
+// DecodeSubject decodes a string into a subject.
+func DecodeSubject(encoded string) (Subject, error) {
+	if strings.HasPrefix(encoded, "T") && len(encoded) > 1 {
+		tokenID64, err := strconv.ParseUint(encoded[1:], 10, 32)
+		if err != nil {
+			return Subject{}, fmt.Errorf("token ID: %w", err)
+		}
+		tokenID := uint32(tokenID64)
+		return Subject{TokenID: &tokenID}, nil
+	}
+
+	address := common.HexToAddress(encoded)
+	return Subject{Address: &address}, nil
 }
 
 // EncodeIndex creates an indexable name string from the Index struct.
 // The index string format is:
 //
-//	date + primaryFiller + dataType + address + secondaryFiller + time
+//	date + primaryFiller + dataType + Subject + secondaryFiller + time
 //
 // where:
 //   - date is calculated as 999999 - (<two-digit-year>*10000 + <two-digit-month>*100 + <two-digit-day>)
 //   - primaryFiller is a constant string of length 2
 //   - dataType is the data type left-padded with zeros or truncated to 10 characters
-//   - address is the hexadecimal representation of the device's address
+//   - subject is either the hexadecimal representation of the device's address or the token ID prefixed with "T"
 //   - secondaryFiller is a constant string of length 2
 //   - time is the time in UTC in the format HHMMSS
 func EncodeIndex(index *Index) (string, error) {
@@ -102,7 +161,7 @@ func EncodeIndex(index *Index) (string, error) {
 		datePart,
 		index.PrimaryFiller,
 		index.DataType,
-		index.Address.Hex()[2:], // Remove "0x" prefix
+		index.Subject,
 		index.SecondaryFiller,
 		timePart,
 	)
@@ -114,13 +173,13 @@ func EncodeIndex(index *Index) (string, error) {
 // It returns an Index struct containing the decoded components.
 // The index string format is expected to be:
 //
-//	date + primaryFiller + dataType + address + secondaryFiller + time
+//	date + primaryFiller + dataType + subject + secondaryFiller + time
 //
 // where:
 //   - date is calculated as 999999 - (<two-digit-year>*10000 + <two-digit-month>*100 + <two-digit-day>)
 //   - primaryFiller is a constant string of length 2
 //   - dataType is the data type left-padded with zeros or truncated to 10 characters
-//   - address is the hexadecimal representation of the device's address
+//   - subject is the hexadecimal representation of the device's address or the token ID prefixed with "T"
 //   - secondaryFiller is a constant string of length 2
 //   - time is the time in UTC in the format HHMMSS
 func DecodeIndex(index string) (*Index, error) {
@@ -131,8 +190,8 @@ func DecodeIndex(index string) (*Index, error) {
 	// Extract parts of the index using start positions.
 	datePart := index[DateStart:PrimaryFillerStart]              // 6 characters for date
 	primaryFillerPart := index[PrimaryFillerStart:DataTypeStart] // 2 characters for primary filler
-	dataTypePart := index[DataTypeStart:AddressStart]            // 10 characters for data type
-	addressPart := index[AddressStart:SecondaryFillerStart]      // 40 characters for address
+	dataTypePart := index[DataTypeStart:SubjectStart]            // 10 characters for data type
+	subjectPart := index[SubjectStart:SecondaryFillerStart]      // 40 characters for subject
 	secondaryFillerPart := index[SecondaryFillerStart:TimeStart] // 2 characters for secondary filler
 	timePart := index[TimeStart:]                                // 6 characters for time
 
@@ -154,8 +213,10 @@ func DecodeIndex(index string) (*Index, error) {
 		return nil, InvalidError("day out of range")
 	}
 
-	// Decode address
-	address := common.HexToAddress(addressPart)
+	subject, err := DecodeSubject(subjectPart)
+	if err != nil {
+		return nil, fmt.Errorf("subject part: %w", err)
+	}
 
 	// Decode time
 	ts, err := time.Parse(HhmmssFormat, timePart)
@@ -168,7 +229,7 @@ func DecodeIndex(index string) (*Index, error) {
 		Timestamp:       fullTime,
 		PrimaryFiller:   primaryFillerPart,
 		DataType:        strings.TrimLeft(dataTypePart, "0"),
-		Address:         address,
+		Subject:         subject,
 		SecondaryFiller: secondaryFillerPart,
 	}
 
