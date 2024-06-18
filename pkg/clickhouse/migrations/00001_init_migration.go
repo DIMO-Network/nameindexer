@@ -54,5 +54,5 @@ CREATE TABLE IF NOT EXISTS name_index
 	file_name String COMMENT 'Name of the file that the data was collected from.',
 )
 ENGINE = MergeTree()
-ORDER BY (toDate(timestamp), primary_filler, data_type, subject, secondary_filler, timestamp);
+ORDER BY (file_name);
 `
