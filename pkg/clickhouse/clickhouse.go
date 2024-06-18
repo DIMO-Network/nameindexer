@@ -1,6 +1,8 @@
 package clickhouse
 
 import (
+	"fmt"
+
 	"github.com/DIMO-Network/nameindexer"
 )
 
@@ -23,12 +25,18 @@ const (
 
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.
 // The order of the elements in the array match the order of the columns in the table.
-func IndexToSlice(index *nameindexer.Index) []any {
+func IndexToSlice(index *nameindexer.Index) ([]any, error) {
+	fileName, err := nameindexer.EncodeIndex(index)
+	if err != nil {
+		return nil, fmt.Errorf("encode index: %w", err)
+	}
+
 	return []any{
 		index.Timestamp,
 		index.PrimaryFiller,
 		index.DataType,
 		index.Subject,
 		index.SecondaryFiller,
-	}
+		fileName,
+	}, nil
 }
