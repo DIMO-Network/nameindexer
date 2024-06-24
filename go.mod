@@ -7,7 +7,7 @@ require (
 	github.com/DIMO-Network/clickhouse-infra v0.0.0-20240614161109-15da97b91df9
 	github.com/aws/aws-sdk-go v1.54.6
 	github.com/ethereum/go-ethereum v1.14.5
-	github.com/pressly/goose/v3 v3.20.0
+	github.com/pressly/goose/v3 v3.21.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/mock v0.4.0
 )
