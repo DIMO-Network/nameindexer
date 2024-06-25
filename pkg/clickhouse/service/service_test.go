@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	chConfig "github.com/DIMO-Network/clickhouse-infra/pkg/connect/config"
+	chconfig "github.com/DIMO-Network/clickhouse-infra/pkg/connect/config"
 	"github.com/DIMO-Network/clickhouse-infra/pkg/container"
 	"github.com/DIMO-Network/nameindexer"
 	chindexer "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
@@ -28,7 +28,7 @@ var dataType = "0123456789"
 // setupClickHouseContainer starts a ClickHouse container for testing and returns the connection.
 func setupClickHouseContainer(t *testing.T) *container.Container {
 	ctx := context.Background()
-	settings := chConfig.Settings{
+	settings := chconfig.Settings{
 		User:     "default",
 		Database: "dimo",
 	}
