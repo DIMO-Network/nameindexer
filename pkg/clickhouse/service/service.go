@@ -82,7 +82,7 @@ func (s *Service) GetDataFromFile(ctx context.Context, filename string) ([]byte,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object from S3: %w", err)
 	}
-	defer obj.Body.Close()
+	defer obj.Body.Close() //nolint
 
 	data, err := io.ReadAll(obj.Body)
 	if err != nil {

@@ -3,8 +3,8 @@ module github.com/DIMO-Network/nameindexer
 go 1.22.0
 
 require (
-	github.com/ClickHouse/clickhouse-go/v2 v2.25.0
-	github.com/DIMO-Network/clickhouse-infra v0.0.0-20240614161109-15da97b91df9
+	github.com/ClickHouse/clickhouse-go/v2 v2.23.2
+	github.com/DIMO-Network/clickhouse-infra v0.0.0-20240625130842-c9eff0c8aabe
 	github.com/aws/aws-sdk-go v1.54.6
 	github.com/ethereum/go-ethereum v1.14.5
 	github.com/pressly/goose/v3 v3.20.0
@@ -71,9 +71,9 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
-	go.opentelemetry.io/otel v1.26.0 // indirect
-	go.opentelemetry.io/otel/metric v1.26.0 // indirect
-	go.opentelemetry.io/otel/trace v1.26.0 // indirect
+	go.opentelemetry.io/otel v1.24.0 // indirect
+	go.opentelemetry.io/otel/metric v1.24.0 // indirect
+	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect

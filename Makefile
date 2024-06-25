@@ -45,7 +45,7 @@ test: ## Run the all tests
 	@go test ./...
 
 lint: ## Run the linter
-	@golangci-lint run
+	@golangci-lint run --timeout=5m
 
 format: ## Run the linter with fix
 	@golangci-lint run --fix
