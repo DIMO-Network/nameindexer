@@ -4,6 +4,7 @@ go 1.22.0
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.2
+	github.com/DIMO-Network/clickhouse-infra v0.0.0-20240625130842-c9eff0c8aabe
 	github.com/aws/aws-sdk-go v1.54.6
 	github.com/ethereum/go-ethereum v1.14.5
 	github.com/pressly/goose/v3 v3.20.0
@@ -15,7 +16,6 @@ require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
-	github.com/DIMO-Network/clickhouse-infra v0.0.0-20240625130842-c9eff0c8aabe // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.11.4 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
