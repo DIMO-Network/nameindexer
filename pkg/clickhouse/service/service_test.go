@@ -15,7 +15,7 @@ import (
 	chindexer "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
 	"github.com/DIMO-Network/nameindexer/pkg/clickhouse/migrations"
 	"github.com/DIMO-Network/nameindexer/pkg/clickhouse/service"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -147,7 +147,7 @@ func TestGetDataFromFile(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockS3Client := NewMockObjectGetter(ctrl)
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
-	mockS3Client.EXPECT().GetObjectWithContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.GetObjectOutput{
+	mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.GetObjectOutput{
 		Body:          io.NopCloser(bytes.NewReader(content)),
 		ContentLength: ref(int64(len(content))),
 	}, nil).AnyTimes()
@@ -181,7 +181,7 @@ func TestStoreFile(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockS3Client := NewMockObjectGetter(ctrl)
-	mockS3Client.EXPECT().PutObjectWithContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
+	mockS3Client.EXPECT().PutObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
 
 	indexFileService := service.New(conn, mockS3Client, "test-bucket")
 
