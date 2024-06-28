@@ -13,9 +13,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/DIMO-Network/nameindexer"
 	chindexer "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // Service manages and retrieves data messages from index files in S3.
@@ -27,8 +26,8 @@ type Service struct {
 
 // ObjectGetter is an interface for getting an object from S3.
 type ObjectGetter interface {
-	GetObjectWithContext(ctx context.Context, input *s3.GetObjectInput, opts ...request.Option) (*s3.GetObjectOutput, error)
-	PutObjectWithContext(ctx context.Context, input *s3.PutObjectInput, opts ...request.Option) (*s3.PutObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 }
 
 // New creates a new instance of serviceService.
@@ -75,7 +74,7 @@ func (s *Service) GetLatestData(ctx context.Context, dataType string, subject na
 
 // GetDataFromFile gets the data from S3 by filename.
 func (s *Service) GetDataFromFile(ctx context.Context, filename string) ([]byte, error) {
-	obj, err := s.objGetter.GetObjectWithContext(ctx, &s3.GetObjectInput{
+	obj, err := s.objGetter.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucketName),
 		Key:    aws.String(filename),
 	})
@@ -98,10 +97,10 @@ func (s *Service) StoreFile(ctx context.Context, index *nameindexer.Index, data 
 		return fmt.Errorf("failed to encode index: %w", err)
 	}
 
-	_, err = s.objGetter.PutObjectWithContext(ctx, &s3.PutObjectInput{
+	_, err = s.objGetter.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &s.bucketName,
 		Key:    &fileName,
-		Body:   aws.ReadSeekCloser(bytes.NewReader(data)),
+		Body:   bytes.NewReader(data),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to store object in S3: %w", err)

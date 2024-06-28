@@ -13,8 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	request "github.com/aws/aws-sdk-go/aws/request"
-	s3 "github.com/aws/aws-sdk-go/service/s3"
+	s3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -41,42 +40,42 @@ func (m *MockObjectGetter) EXPECT() *MockObjectGetterMockRecorder {
 	return m.recorder
 }
 
-// GetObjectWithContext mocks base method.
-func (m *MockObjectGetter) GetObjectWithContext(ctx context.Context, input *s3.GetObjectInput, opts ...request.Option) (*s3.GetObjectOutput, error) {
+// GetObject mocks base method.
+func (m *MockObjectGetter) GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 	m.ctrl.T.Helper()
-	varargs := []any{ctx, input}
-	for _, a := range opts {
+	varargs := []any{ctx, params}
+	for _, a := range optFns {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "GetObjectWithContext", varargs...)
+	ret := m.ctrl.Call(m, "GetObject", varargs...)
 	ret0, _ := ret[0].(*s3.GetObjectOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetObjectWithContext indicates an expected call of GetObjectWithContext.
-func (mr *MockObjectGetterMockRecorder) GetObjectWithContext(ctx, input any, opts ...any) *gomock.Call {
+// GetObject indicates an expected call of GetObject.
+func (mr *MockObjectGetterMockRecorder) GetObject(ctx, params any, optFns ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{ctx, input}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetObjectWithContext", reflect.TypeOf((*MockObjectGetter)(nil).GetObjectWithContext), varargs...)
+	varargs := append([]any{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetObject", reflect.TypeOf((*MockObjectGetter)(nil).GetObject), varargs...)
 }
 
-// PutObjectWithContext mocks base method.
-func (m *MockObjectGetter) PutObjectWithContext(ctx context.Context, input *s3.PutObjectInput, opts ...request.Option) (*s3.PutObjectOutput, error) {
+// PutObject mocks base method.
+func (m *MockObjectGetter) PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
 	m.ctrl.T.Helper()
-	varargs := []any{ctx, input}
-	for _, a := range opts {
+	varargs := []any{ctx, params}
+	for _, a := range optFns {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "PutObjectWithContext", varargs...)
+	ret := m.ctrl.Call(m, "PutObject", varargs...)
 	ret0, _ := ret[0].(*s3.PutObjectOutput)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// PutObjectWithContext indicates an expected call of PutObjectWithContext.
-func (mr *MockObjectGetterMockRecorder) PutObjectWithContext(ctx, input any, opts ...any) *gomock.Call {
+// PutObject indicates an expected call of PutObject.
+func (mr *MockObjectGetterMockRecorder) PutObject(ctx, params any, optFns ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]any{ctx, input}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutObjectWithContext", reflect.TypeOf((*MockObjectGetter)(nil).PutObjectWithContext), varargs...)
+	varargs := append([]any{ctx, params}, optFns...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutObject", reflect.TypeOf((*MockObjectGetter)(nil).PutObject), varargs...)
 }
