@@ -24,6 +24,7 @@ const (
 )
 
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.
+// This function will modify the index to have correctly padded values.
 // The order of the elements in the array match the order of the columns in the table.
 func IndexToSlice(index *nameindexer.Index) ([]any, error) {
 	fileName, err := nameindexer.EncodeIndex(index)

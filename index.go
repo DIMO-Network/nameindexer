@@ -132,6 +132,7 @@ func DecodeSubject(encoded string) (Subject, error) {
 }
 
 // EncodeIndex creates an indexable name string from the Index struct.
+// This function will modify the index to have correctly padded values.
 // The index string format is:
 //
 //	date + primaryFiller + dataType + Subject + secondaryFiller + time
@@ -144,7 +145,7 @@ func DecodeSubject(encoded string) (Subject, error) {
 //   - secondaryFiller is a constant string of length 2
 //   - time is the time in UTC in the format HHMMSS
 func EncodeIndex(index *Index) (string, error) {
-	err := setDefaultsAndValidateIndex(index)
+	err := SetDefaultsAndValidateIndex(index)
 	if err != nil {
 		return "", err
 	}
@@ -228,7 +229,7 @@ func DecodeIndex(index string) (*Index, error) {
 	decodedIndex := &Index{
 		Timestamp:       fullTime,
 		PrimaryFiller:   primaryFillerPart,
-		DataType:        strings.TrimLeft(dataTypePart, "0"),
+		DataType:        dataTypePart,
 		Subject:         subject,
 		SecondaryFiller: secondaryFillerPart,
 	}
@@ -236,7 +237,9 @@ func DecodeIndex(index string) (*Index, error) {
 	return decodedIndex, nil
 }
 
-func setDefaultsAndValidateIndex(index *Index) error {
+// SetDefaultsAndValidateIndex sets default values for empty fields and validates the index.
+// This function will modify the index to have correctly padded values.
+func SetDefaultsAndValidateIndex(index *Index) error {
 	if index == nil {
 		return InvalidError("nil index")
 	}

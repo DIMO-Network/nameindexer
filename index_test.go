@@ -243,8 +243,18 @@ func TestDecodeIndex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := DecodeIndex(tt.input)
-			if (err != nil) != tt.expectErr {
+			if tt.expectErr {
+				if err == nil {
+					t.Fatalf("DecodeIndex() error = nil, expected error")
+				}
+				return
+			}
+			if err != nil {
 				t.Fatalf("DecodeIndex() error = %v, expectErr %v", err, tt.expectErr)
+			}
+			err = SetDefaultsAndValidateIndex(&tt.expected)
+			if err != nil {
+				t.Fatalf("SetDefaultsAndValidateIndex() error = %v", err)
 			}
 			if err == nil && !compareIndices(result, &tt.expected) {
 				t.Fatalf("DecodeIndex() result = %+v, expected %+v", result, tt.expected)
