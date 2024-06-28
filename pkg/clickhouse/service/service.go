@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/DIMO-Network/nameindexer"
@@ -23,7 +22,6 @@ import (
 type Service struct {
 	objGetter  ObjectGetter
 	chConn     clickhouse.Conn
-	dataType   string
 	bucketName string
 }
 
@@ -34,21 +32,23 @@ type ObjectGetter interface {
 }
 
 // New creates a new instance of serviceService.
-func New(chConn clickhouse.Conn, objGetter ObjectGetter, bucketName, dataType string) *Service {
+func New(chConn clickhouse.Conn, objGetter ObjectGetter, bucketName string) (*Service, error) {
 	return &Service{
 		objGetter:  objGetter,
 		chConn:     chConn,
 		bucketName: bucketName,
-		dataType:   dataType,
-	}
+	}, nil
 }
 
 // GetLatestFileName returns the latest filename for the given subject and data type.
-func (s *Service) GetLatestFileName(ctx context.Context, subject nameindexer.Subject) (string, error) {
+func (s *Service) GetLatestFileName(ctx context.Context, dataType string, subject nameindexer.Subject) (string, error) {
+	paddedDataType, err := nameindexer.SantatizeDataType(dataType)
+	if err != nil {
+		return "", fmt.Errorf("failed to sanitize data type: %w", err)
+	}
 	query := fmt.Sprintf("SELECT argMax(%s, %s) AS filename FROM %s WHERE %s = ? AND %s = ?", chindexer.FileNameColumn, chindexer.TimestampColumn, chindexer.TableName, chindexer.SubjectColumn, chindexer.DataTypeColumn)
-
 	var filename string
-	err := s.chConn.QueryRow(ctx, query, subject, s.dataType).Scan(&filename)
+	err = s.chConn.QueryRow(ctx, query, subject, paddedDataType).Scan(&filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to get latest filename: %w", err)
 	}
@@ -59,8 +59,8 @@ func (s *Service) GetLatestFileName(ctx context.Context, subject nameindexer.Sub
 }
 
 // GetLatestData fetches and returns the latest data for the given subject.
-func (s *Service) GetLatestData(ctx context.Context, subject nameindexer.Subject) ([]byte, error) {
-	filename, err := s.GetLatestFileName(ctx, subject)
+func (s *Service) GetLatestData(ctx context.Context, dataType string, subject nameindexer.Subject) ([]byte, error) {
+	filename, err := s.GetLatestFileName(ctx, dataType, subject)
 	if err != nil {
 		return nil, err
 	}
@@ -111,16 +111,8 @@ func (s *Service) StoreFile(ctx context.Context, index *nameindexer.Index, data 
 	if err != nil {
 		return fmt.Errorf("failed to convert index to slice: %w", err)
 	}
-	var query strings.Builder
-	query.WriteString(fmt.Sprintf("INSERT INTO %s VALUES (", chindexer.TableName)) //nolint:revive
-	for i := range values {
-		if i > 0 {
-			query.WriteString(", ") //nolint:revive
-		}
-		query.WriteString("?") //nolint:revive
-	}
-	query.WriteString(")") //nolint:revive
-	err = s.chConn.Exec(ctx, query.String(), values...)
+
+	err = s.chConn.Exec(ctx, chindexer.InsertStmt, values...)
 	if err != nil {
 		return fmt.Errorf("failed to store index in ClickHouse: %w", err)
 	}

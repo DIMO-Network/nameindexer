@@ -21,6 +21,9 @@ const (
 	SecondaryFillerColumn = "secondary_filler"
 	// FileNameColumn is the name of the file name column in Clickhouse.
 	FileNameColumn = "file_name"
+
+	// InsertStmt is the SQL statement for inserting a row into Clickhouse.
+	InsertStmt = "INSERT INTO " + TableName + " (" + TimestampColumn + ", " + PrimaryFillerColumn + ", " + DataTypeColumn + ", " + SubjectColumn + ", " + SecondaryFillerColumn + ", " + FileNameColumn + ") VALUES (?, ?, ?, ?, ?, ?)"
 )
 
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.

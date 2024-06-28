@@ -3,7 +3,6 @@ package service_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"log"
 	"testing"
@@ -23,7 +22,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-var dataType = "0123456789"
+var dataType = "small"
 
 // setupClickHouseContainer starts a ClickHouse container for testing and returns the connection.
 func setupClickHouseContainer(t *testing.T) *container.Container {
@@ -51,11 +50,20 @@ func setupClickHouseContainer(t *testing.T) *container.Container {
 }
 
 // insertTestData inserts test data into ClickHouse.
-func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, subject nameindexer.Subject, filename string, timestamp time.Time) {
-	query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s) VALUES (?, ?, ?, ?)", chindexer.TableName,
-		chindexer.SubjectColumn, chindexer.FileNameColumn, chindexer.TimestampColumn, chindexer.DataTypeColumn)
-	err := conn.Exec(ctx, query, subject, filename, timestamp, dataType)
+func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, subject nameindexer.Subject, timestamp time.Time) string {
+	idx := nameindexer.Index{
+		Subject:   subject,
+		DataType:  dataType,
+		Timestamp: timestamp,
+	}
+	values, err := chindexer.IndexToSlice(&idx)
 	require.NoError(t, err)
+
+	err = conn.Exec(ctx, chindexer.InsertStmt, values...)
+	require.NoError(t, err)
+	filename, err := nameindexer.EncodeIndex(&idx)
+	require.NoError(t, err)
+	return filename
 }
 
 // TestGetLatestFileName tests the GetLatestFileName function.
@@ -68,8 +76,8 @@ func TestGetLatestFileName(t *testing.T) {
 	deviceAddr1 := randAddress()
 	deviceAddr2 := randAddress()
 	ctx := context.Background()
-	insertTestData(t, ctx, conn, nameindexer.Subject{Address: ref(deviceAddr1)}, "file1.json", time.Now().Add(-1*time.Hour))
-	insertTestData(t, ctx, conn, nameindexer.Subject{Address: ref(deviceAddr1)}, "file2.json", time.Now())
+	_ = insertTestData(t, ctx, conn, nameindexer.Subject{Address: ref(deviceAddr1)}, time.Now().Add(-1*time.Hour))
+	file2Name := insertTestData(t, ctx, conn, nameindexer.Subject{Address: ref(deviceAddr1)}, time.Now())
 
 	tests := []struct {
 		name          string
@@ -80,7 +88,7 @@ func TestGetLatestFileName(t *testing.T) {
 		{
 			name:         "valid latest file",
 			deviceAddr:   deviceAddr1,
-			expectedFile: "file2.json",
+			expectedFile: file2Name,
 		},
 		{
 			name:          "no records",
@@ -89,11 +97,12 @@ func TestGetLatestFileName(t *testing.T) {
 		},
 	}
 
-	indexFileService := service.New(conn, nil, "test-bucket", dataType)
+	indexFileService, err := service.New(conn, nil, "test-bucket")
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filename, err := indexFileService.GetLatestFileName(context.Background(), nameindexer.Subject{
+			filename, err := indexFileService.GetLatestFileName(context.Background(), dataType, nameindexer.Subject{
 				Address: &tt.deviceAddr,
 			})
 
@@ -116,7 +125,7 @@ func TestGetDataFromFile(t *testing.T) {
 	conn, err := chContainer.GetClickHouseAsConn()
 	require.NoError(t, err)
 	ctx := context.Background()
-	insertTestData(t, ctx, conn, nameindexer.Subject{Address: ref(deviceAddr1)}, "file1.json", time.Now().Add(-1*time.Hour))
+	_ = insertTestData(t, ctx, conn, nameindexer.Subject{Address: ref(deviceAddr1)}, time.Now().Add(-1*time.Hour))
 
 	tests := []struct {
 		name            string
@@ -144,11 +153,12 @@ func TestGetDataFromFile(t *testing.T) {
 		ContentLength: ref(int64(len(content))),
 	}, nil).AnyTimes()
 
-	indexFileService := service.New(conn, mockS3Client, "test-bucket", dataType)
+	indexFileService, err := service.New(conn, mockS3Client, "test-bucket")
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content, err := indexFileService.GetLatestData(context.Background(), nameindexer.Subject{
+			content, err := indexFileService.GetLatestData(context.Background(), dataType, nameindexer.Subject{
 				Address: &tt.deviceAddr,
 			})
 
@@ -175,7 +185,8 @@ func TestStoreFile(t *testing.T) {
 	mockS3Client := NewMockObjectGetter(ctrl)
 	mockS3Client.EXPECT().PutObjectWithContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
 
-	indexFileService := service.New(conn, mockS3Client, "test-bucket", dataType)
+	indexFileService, err := service.New(conn, mockS3Client, "test-bucket")
+	require.NoError(t, err)
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	index := nameindexer.Index{
@@ -188,7 +199,7 @@ func TestStoreFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
-	filename, err := indexFileService.GetLatestFileName(ctx, nameindexer.Subject{
+	filename, err := indexFileService.GetLatestFileName(ctx, dataType, nameindexer.Subject{
 		Address: &deviceAddr1,
 	})
 	require.NoError(t, err)

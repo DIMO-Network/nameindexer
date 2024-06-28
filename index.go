@@ -259,13 +259,10 @@ func SetDefaultsAndValidateIndex(index *Index) error {
 	if len(index.SecondaryFiller) != SecondaryFillerLength {
 		return InvalidError("secondary filler length")
 	}
-	// Validate data type length
-	if len(index.DataType) > DataTypeLength {
-		return InvalidError("data type too long")
-	}
-	// Pad data type with zeros if shorter than required
-	if len(index.DataType) < DataTypeLength {
-		index.DataType = fmt.Sprintf("%0*s", DataTypeLength, index.DataType)
+	var err error
+	index.DataType, err = SantatizeDataType(index.DataType)
+	if err != nil {
+		return err
 	}
 
 	// Format date part
@@ -274,4 +271,18 @@ func SetDefaultsAndValidateIndex(index *Index) error {
 	}
 
 	return nil
+}
+
+// SantatizeDataType pads the data type with zeros if shorter than required.
+// returns an error if the data type is too long.
+func SantatizeDataType(dataType string) (string, error) {
+	// Validate data type length
+	if len(dataType) > DataTypeLength {
+		return "", InvalidError("data type too long")
+	}
+	// Pad data type with zeros if shorter than required
+	if len(dataType) < DataTypeLength {
+		return fmt.Sprintf("%0*s", DataTypeLength, dataType), nil
+	}
+	return dataType, nil
 }
