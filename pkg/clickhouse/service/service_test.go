@@ -97,8 +97,7 @@ func TestGetLatestFileName(t *testing.T) {
 		},
 	}
 
-	indexFileService, err := service.New(conn, nil, "test-bucket")
-	require.NoError(t, err)
+	indexFileService := service.New(conn, nil, "test-bucket")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,8 +152,7 @@ func TestGetDataFromFile(t *testing.T) {
 		ContentLength: ref(int64(len(content))),
 	}, nil).AnyTimes()
 
-	indexFileService, err := service.New(conn, mockS3Client, "test-bucket")
-	require.NoError(t, err)
+	indexFileService := service.New(conn, mockS3Client, "test-bucket")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -185,8 +183,7 @@ func TestStoreFile(t *testing.T) {
 	mockS3Client := NewMockObjectGetter(ctrl)
 	mockS3Client.EXPECT().PutObjectWithContext(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
 
-	indexFileService, err := service.New(conn, mockS3Client, "test-bucket")
-	require.NoError(t, err)
+	indexFileService := service.New(conn, mockS3Client, "test-bucket")
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	index := nameindexer.Index{

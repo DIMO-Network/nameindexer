@@ -32,12 +32,12 @@ type ObjectGetter interface {
 }
 
 // New creates a new instance of serviceService.
-func New(chConn clickhouse.Conn, objGetter ObjectGetter, bucketName string) (*Service, error) {
+func New(chConn clickhouse.Conn, objGetter ObjectGetter, bucketName string) *Service {
 	return &Service{
 		objGetter:  objGetter,
 		chConn:     chConn,
 		bucketName: bucketName,
-	}, nil
+	}
 }
 
 // GetLatestFileName returns the latest filename for the given subject and data type.
