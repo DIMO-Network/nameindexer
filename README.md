@@ -6,6 +6,26 @@
 
 This repository is responsible for creating and managing indexable names for objects.
 
+The index string format is:
+
+ `date + primaryFiller + dataType + Subject + secondaryFiller + time`
+
+
+where:
+
+- `Date` is calculated as 999999 - (<two-digit-year>*10000 + <two-digit-month>*100 + <two-digit-day>)
+  - Ex. To store The date Mar 8, 2024 it would be 999999 - 240308 = 759691 This will mean new dates have a lower number and thus get sorted first.
+ - `PrimaryFiller` is a constant string of length 2
+  - Two filler characters default "MM" (MM stands for MiddleMiddle)
+- `DataType` is the data type left-padded with zeros or truncated to 10 characters
+  - Ex. “Synth2.0.1” or “0Stat4.3.2"
+- `Subject` is either the hexadecimal representation of the device's address or the token ID prefixed with "T" and left padded with 0s
+- `SecondaryFiller` is a constant string of length 2
+  - 00 (Allows per vehicle sorting) Could be packet sequence number
+- `Time` is the time in UTC in the format HHMMSS
+
+# Development
+
 Use `make` to manage the project building, testing, and linting.
 
 ```
