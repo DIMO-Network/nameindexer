@@ -3,6 +3,7 @@
 # Set the bin path
 PATHINSTBIN = $(abspath ./bin)
 export PATH := $(PATHINSTBIN):$(PATH)
+SHELL := env PATH=$(PATH) $(SHELL)
 
 BIN_NAME					?= nameindexer
 DEFAULT_INSTALL_DIR			:= $(go env GOPATH)/bin
