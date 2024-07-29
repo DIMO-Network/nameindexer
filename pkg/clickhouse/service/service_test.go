@@ -76,9 +76,9 @@ func TestGetLatestFileName(t *testing.T) {
 	deviceAddr1 := randAddress()
 	deviceAddr2 := randAddress()
 	ctx := context.Background()
-	_ = insertTestData(t, ctx, conn, nameindexer.Subject{nameindexer.Address(deviceAddr1)},
+	_ = insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
 		time.Now().Add(-1*time.Hour))
-	file2Name := insertTestData(t, ctx, conn, nameindexer.Subject{nameindexer.Address(deviceAddr1)}, time.Now())
+	file2Name := insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, time.Now())
 
 	tests := []struct {
 		name          string
@@ -103,7 +103,7 @@ func TestGetLatestFileName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filename, err := indexFileService.GetLatestFileName(context.Background(), dataType, nameindexer.Subject{
-				nameindexer.Address(tt.deviceAddr),
+				Identifier: nameindexer.Address(tt.deviceAddr),
 			})
 
 			if tt.expectedError {
@@ -125,7 +125,7 @@ func TestGetDataFromFile(t *testing.T) {
 	conn, err := chContainer.GetClickHouseAsConn()
 	require.NoError(t, err)
 	ctx := context.Background()
-	_ = insertTestData(t, ctx, conn, nameindexer.Subject{nameindexer.Address(deviceAddr1)}, time.Now().Add(-1*time.Hour))
+	_ = insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, time.Now().Add(-1*time.Hour))
 
 	tests := []struct {
 		name            string
@@ -158,7 +158,7 @@ func TestGetDataFromFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			content, err := indexFileService.GetLatestData(context.Background(), dataType, nameindexer.Subject{
-				nameindexer.Address(tt.deviceAddr),
+				Identifier: nameindexer.Address(tt.deviceAddr),
 			})
 
 			if tt.expectedError {
@@ -188,7 +188,7 @@ func TestStoreFile(t *testing.T) {
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	index := nameindexer.Index{
-		Subject:   nameindexer.Subject{nameindexer.Address(deviceAddr1)},
+		Subject:   nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
 		DataType:  dataType,
 		Timestamp: time.Now(),
 	}
@@ -198,7 +198,7 @@ func TestStoreFile(t *testing.T) {
 
 	// Verify the data is stored in ClickHouse
 	filename, err := indexFileService.GetLatestFileName(ctx, dataType, nameindexer.Subject{
-		nameindexer.Address(deviceAddr1),
+		Identifier: nameindexer.Address(deviceAddr1),
 	})
 	require.NoError(t, err)
 	expectedFileName, err := nameindexer.EncodeIndex(&index)
