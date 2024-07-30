@@ -76,21 +76,41 @@ type Index struct {
 // The subject can be an Ethereum address or a token ID.
 // if both are set, the address is used.
 type Subject struct {
-	// Address is the Ethereum address of the device.
-	Address *common.Address
-	// TokenID is the token ID of the device.
-	TokenID *uint32
+	Identifier IsIdentifier
 }
+
+// IsIdentifier is an interface for subject types.
+type IsIdentifier interface {
+	isIdentifier()
+}
+
+// Address is a subject type representing an Ethereum address.
+type Address common.Address
+
+func (Address) isIdentifier() {}
+
+// TokenID is a subject type representing a token ID.
+type TokenID uint32
+
+func (TokenID) isIdentifier() {}
+
+// IMEI is a subject type representing an IMEI string.
+type IMEI string
+
+func (IMEI) isIdentifier() {}
 
 // String encodes a subject into a string and satisfies the fmt.Stringer interface.
 func (s Subject) String() string {
-	if s.Address != nil {
-		return s.Address.Hex()[2:] // Remove "0x" prefix
+	switch sub := s.Identifier.(type) {
+	case Address:
+		return common.Address(sub).Hex()[2:] // Remove "0x" prefix
+	case TokenID:
+		return fmt.Sprintf("T%0*d", SubjectLenth-1, sub)
+	case IMEI:
+		return fmt.Sprintf("IMEI%0*s", SubjectLenth-1, sub)
+	default:
+		return ""
 	}
-	if s.TokenID != nil {
-		return fmt.Sprintf("T%0*d", SubjectLenth-1, *s.TokenID)
-	}
-	return ""
 }
 
 // Value satisfies sql/driver.Valuer interface for Subject.
@@ -124,11 +144,15 @@ func DecodeSubject(encoded string) (Subject, error) {
 			return Subject{}, fmt.Errorf("token ID: %w", err)
 		}
 		tokenID := uint32(tokenID64)
-		return Subject{TokenID: &tokenID}, nil
+		return Subject{TokenID(tokenID)}, nil
+	}
+	if strings.HasPrefix(encoded, "IMEI") && len(encoded) > 4 {
+		imei := IMEI(encoded[4:])
+		return Subject{imei}, nil
 	}
 
 	address := common.HexToAddress(encoded)
-	return Subject{Address: &address}, nil
+	return Subject{Address(address)}, nil
 }
 
 // EncodeIndex creates an indexable name string from the Index struct.
@@ -141,7 +165,10 @@ func DecodeSubject(encoded string) (Subject, error) {
 //   - date is calculated as 999999 - (<two-digit-year>*10000 + <two-digit-month>*100 + <two-digit-day>)
 //   - primaryFiller is a constant string of length 2
 //   - dataType is the data type left-padded with zeros or truncated to 10 characters
-//   - subject is either the hexadecimal representation of the device's address or the token ID prefixed with "T"
+//   - subject is one of the following
+//     1. hexadecimal representation of the device's address
+//     2. TokenID prefixed with "T"
+//     3. IMEI prefixed with "IMEI"
 //   - secondaryFiller is a constant string of length 2
 //   - time is the time in UTC in the format HHMMSS
 func EncodeIndex(index *Index) (string, error) {

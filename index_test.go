@@ -22,7 +22,7 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "",
 				DataType:      "Stat/2.0.0",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "",
 			},
@@ -36,7 +36,7 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "XX",
 				DataType:      "Stat/2.0.0",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "99",
 			},
@@ -50,26 +50,11 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat/2.0.0",
 				Subject: Subject{
-					TokenID: ref(uint32(1234567890)),
+					TokenID(uint32(1234567890)),
 				},
 				SecondaryFiller: "00",
 			},
 			expected:  "759388MMStat/2.0.0T00000000000000000000000000000123456789000153000",
-			expectErr: false,
-		},
-		{
-			name: "Valid index encoding with TokenID && Address",
-			input: &Index{
-				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
-				PrimaryFiller: "MM",
-				DataType:      "Stat/2.0.0",
-				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
-					TokenID: ref(uint32(1234567890)),
-				},
-				SecondaryFiller: "00",
-			},
-			expected:  "759388MMStat/2.0.0C57D6D57fcA59d0517038c968A1b831B071FA67900153000",
 			expectErr: false,
 		},
 		{
@@ -79,7 +64,7 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "MMM",
 				DataType:      "Stat/2.0.0",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "00",
 			},
@@ -93,7 +78,7 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat/2.0.0",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "000",
 			},
@@ -107,7 +92,7 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "00",
 			},
@@ -121,7 +106,7 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat/2.0.0.0.0.0",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "00",
 			},
@@ -135,7 +120,7 @@ func TestEncodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "00",
 			},
@@ -178,7 +163,7 @@ func TestDecodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat/2.0.0",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "00",
 			},
@@ -192,7 +177,7 @@ func TestDecodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat/2.0.0",
 				Subject: Subject{
-					TokenID: ref(uint32(923423)),
+					TokenID(uint32(923423)),
 				},
 				SecondaryFiller: "00",
 			},
@@ -212,7 +197,7 @@ func TestDecodeIndex(t *testing.T) {
 				PrimaryFiller: "MM",
 				DataType:      "Stat",
 				Subject: Subject{
-					Address: ref(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
+					Address(common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679")),
 				},
 				SecondaryFiller: "00",
 			},
@@ -269,29 +254,8 @@ func compareIndices(a, b *Index) bool {
 		return a == b
 	}
 
-	if a.Subject.Address != nil && b.Subject.Address != nil {
-		if *a.Subject.Address != *b.Subject.Address {
-			return false
-		}
-	} else if a.Subject.TokenID == b.Subject.TokenID {
-		return false
-	}
-
-	if a.Subject.TokenID != nil && b.Subject.TokenID != nil {
-		if *a.Subject.TokenID != *b.Subject.TokenID {
-			return false
-		}
-	} else if a.Subject.TokenID != b.Subject.TokenID {
-		return false
-	}
-
-	return a.Timestamp.Equal(b.Timestamp) &&
+	return a.Subject.Identifier == b.Subject.Identifier && a.Timestamp.Equal(b.Timestamp) &&
 		a.PrimaryFiller == b.PrimaryFiller &&
 		strings.TrimSpace(a.DataType) == strings.TrimSpace(b.DataType) &&
 		a.SecondaryFiller == b.SecondaryFiller
-}
-
-// ref returns a reference to the input.
-func ref[T any](v T) *T {
-	return &v
 }
