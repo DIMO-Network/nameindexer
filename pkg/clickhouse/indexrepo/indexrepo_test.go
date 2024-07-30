@@ -1,4 +1,5 @@
-package service_test
+//go:generate mockgen -source=./indexrepo.go -destination=indexrepo_mock_test.go -package=indexrepo_test
+package indexrepo_test
 
 import (
 	"bytes"
@@ -13,8 +14,8 @@ import (
 	"github.com/DIMO-Network/clickhouse-infra/pkg/container"
 	"github.com/DIMO-Network/nameindexer"
 	chindexer "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
+	"github.com/DIMO-Network/nameindexer/pkg/clickhouse/indexrepo"
 	"github.com/DIMO-Network/nameindexer/pkg/clickhouse/migrations"
-	"github.com/DIMO-Network/nameindexer/pkg/clickhouse/service"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -98,7 +99,7 @@ func TestGetLatestFileName(t *testing.T) {
 		},
 	}
 
-	indexFileService := service.New(conn, nil, "test-bucket")
+	indexFileService := indexrepo.New(conn, nil, "test-bucket")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -153,7 +154,7 @@ func TestGetDataFromFile(t *testing.T) {
 		ContentLength: ref(int64(len(content))),
 	}, nil).AnyTimes()
 
-	indexFileService := service.New(conn, mockS3Client, "test-bucket")
+	indexFileService := indexrepo.New(conn, mockS3Client, "test-bucket")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -184,7 +185,7 @@ func TestStoreFile(t *testing.T) {
 	mockS3Client := NewMockObjectGetter(ctrl)
 	mockS3Client.EXPECT().PutObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
 
-	indexFileService := service.New(conn, mockS3Client, "test-bucket")
+	indexFileService := indexrepo.New(conn, mockS3Client, "test-bucket")
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	index := nameindexer.Index{

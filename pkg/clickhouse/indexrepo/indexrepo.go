@@ -1,7 +1,5 @@
 // Package service contains service code for gettting and managing index files.
-//
-//go:generate mockgen -source=./service.go -destination=service_mock_test.go -package=service_test
-package service
+package indexrepo
 
 import (
 	"bytes"
