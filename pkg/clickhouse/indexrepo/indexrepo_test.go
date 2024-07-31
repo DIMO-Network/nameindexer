@@ -76,26 +76,39 @@ func TestGetLatestFileName(t *testing.T) {
 	require.NoError(t, err)
 	deviceAddr1 := randAddress()
 	deviceAddr2 := randAddress()
+	tokenID := uint32(1234567890)
+	imei := "123456789012345"
 	ctx := context.Background()
 	_ = insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
 		time.Now().Add(-1*time.Hour))
 	file2Name := insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, time.Now())
-
+	tokenIDFileName := insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)}, time.Now())
+	imeiFileName := insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.IMEI(imei)}, time.Now())
 	tests := []struct {
 		name          string
-		deviceAddr    common.Address
+		subject       nameindexer.Subject
 		expectedFile  string
 		expectedError bool
 	}{
 		{
 			name:         "valid latest file",
-			deviceAddr:   deviceAddr1,
+			subject:      nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
 			expectedFile: file2Name,
 		},
 		{
 			name:          "no records",
-			deviceAddr:    deviceAddr2,
+			subject:       nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr2)},
 			expectedError: true,
+		},
+		{
+			name:         "valid latest file with token ID",
+			subject:      nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)},
+			expectedFile: tokenIDFileName,
+		},
+		{
+			name:         "valid latest file with IMEI",
+			subject:      nameindexer.Subject{Identifier: nameindexer.IMEI(imei)},
+			expectedFile: imeiFileName,
 		},
 	}
 
@@ -103,9 +116,7 @@ func TestGetLatestFileName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filename, err := indexFileService.GetLatestFileName(context.Background(), dataType, nameindexer.Subject{
-				Identifier: nameindexer.Address(tt.deviceAddr),
-			})
+			filename, err := indexFileService.GetLatestFileName(context.Background(), dataType, tt.subject)
 
 			if tt.expectedError {
 				require.Error(t, err)

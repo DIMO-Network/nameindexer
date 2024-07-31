@@ -133,6 +133,29 @@ func TestEncodeIndex(t *testing.T) {
 			expected:  "",
 			expectErr: true,
 		},
+		{
+			name: "Valid IMEI",
+			input: &Index{
+				Timestamp: time.Date(2020, 6, 2, 15, 30, 0, 0, time.UTC),
+				DataType:  "Stat",
+				Subject: Subject{
+					IMEI("012345678901234"),
+				},
+			},
+			expected: "799397MM000000StatIMEI00000000000000000000001234567890123400153000",
+		},
+		{
+			name: "Invalid IMEI",
+			input: &Index{
+				Timestamp: time.Date(2020, 6, 2, 15, 30, 0, 0, time.UTC),
+				DataType:  "Stat",
+				Subject: Subject{
+					IMEI("01234567890123456789"),
+				},
+			},
+			expected:  "",
+			expectErr: true,
+		},
 	}
 
 	for _, tt := range tests {

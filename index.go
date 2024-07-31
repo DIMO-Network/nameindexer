@@ -3,6 +3,7 @@ package nameindexer
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -48,7 +49,15 @@ const (
 	DefaultPrimaryFiller = "MM"
 	// DefaultSecondaryFiller is the default filler value between the subject and time.
 	DefaultSecondaryFiller = "00"
+
+	// TokenIDPrefix is the prefix for token IDs in the index string.
+	TokenIDPrefix = "T"
+	// IMEIPrefix is the prefix for IMEI strings in the index string.
+	IMEIPrefix = "IMEI"
 )
+
+// imeiRegex is the regular expression for validating IMEI strings.
+var imeiRegex = regexp.MustCompile(`^\d{15}$`)
 
 // InvalidError represents an error type for invalid arguments.
 type InvalidError string
@@ -105,9 +114,9 @@ func (s Subject) String() string {
 	case Address:
 		return common.Address(sub).Hex()[2:] // Remove "0x" prefix
 	case TokenID:
-		return fmt.Sprintf("T%0*d", SubjectLenth-1, sub)
+		return fmt.Sprintf("%s%0*d", TokenIDPrefix, SubjectLenth-len(TokenIDPrefix), sub)
 	case IMEI:
-		return fmt.Sprintf("IMEI%0*s", SubjectLenth-1, sub)
+		return fmt.Sprintf("%s%0*s", IMEIPrefix, SubjectLenth-(len(IMEIPrefix)), sub)
 	default:
 		return ""
 	}
@@ -138,16 +147,16 @@ func (s *Subject) Scan(value any) error {
 
 // DecodeSubject decodes a string into a subject.
 func DecodeSubject(encoded string) (Subject, error) {
-	if strings.HasPrefix(encoded, "T") && len(encoded) > 1 {
-		tokenID64, err := strconv.ParseUint(encoded[1:], 10, 32)
+	if strings.HasPrefix(encoded, TokenIDPrefix) && len(encoded) > len(TokenIDPrefix) {
+		tokenID64, err := strconv.ParseUint(encoded[len(TokenIDPrefix):], 10, 32)
 		if err != nil {
 			return Subject{}, fmt.Errorf("token ID: %w", err)
 		}
 		tokenID := uint32(tokenID64)
 		return Subject{TokenID(tokenID)}, nil
 	}
-	if strings.HasPrefix(encoded, "IMEI") && len(encoded) > 4 {
-		imei := IMEI(encoded[4:])
+	if strings.HasPrefix(encoded, IMEIPrefix) && len(encoded) > len(IMEIPrefix) {
+		imei := IMEI(encoded[len(TokenIDPrefix):])
 		return Subject{imei}, nil
 	}
 
@@ -290,6 +299,12 @@ func SetDefaultsAndValidateIndex(index *Index) error {
 	index.DataType, err = SantatizeDataType(index.DataType)
 	if err != nil {
 		return err
+	}
+	// check that imei is valid regex
+	if imei, ok := index.Subject.Identifier.(IMEI); ok {
+		if !imeiRegex.MatchString(string(imei)) {
+			return InvalidError(fmt.Sprintf("IMEI %s is not 15-digits", imei))
+		}
 	}
 
 	// Format date part
