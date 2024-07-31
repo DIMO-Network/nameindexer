@@ -56,8 +56,8 @@ const (
 	IMEIPrefix = "IMEI"
 )
 
-// imeiRegex is the regular expression for validating IMEI strings.
-var imeiRegex = regexp.MustCompile(`^\d{15}$`)
+// digitRegex is a regular expression for matching digits.
+var digitRegex = regexp.MustCompile(`^\d+$`)
 
 // InvalidError represents an error type for invalid arguments.
 type InvalidError string
@@ -302,8 +302,13 @@ func SetDefaultsAndValidateIndex(index *Index) error {
 	}
 	// check that imei is valid regex
 	if imei, ok := index.Subject.Identifier.(IMEI); ok {
-		if !imeiRegex.MatchString(string(imei)) {
-			return InvalidError(fmt.Sprintf("IMEI %s is not 15-digits", imei))
+		if !digitRegex.MatchString(string(imei)) {
+			return InvalidError(fmt.Sprintf("IMEI %s can only be digits", imei))
+		}
+		if len(imei) == 14 {
+			index.Subject.Identifier = IMEI(string(imei) + calculateCheckDigit(string(imei)))
+		} else if len(imei) != 15 {
+			return InvalidError("IMEI must be 14 or 15 digits")
 		}
 	}
 
@@ -327,4 +332,26 @@ func SantatizeDataType(dataType string) (string, error) {
 		return fmt.Sprintf("%0*s", DataTypeLength, dataType), nil
 	}
 	return dataType, nil
+}
+
+// calculateCheckDigit calculates the check digit for an IMEI string. using the Luhn algorithm.
+func calculateCheckDigit(imei string) string {
+	// convert to a slice of digits
+	digits := make([]int, len(imei))
+	for i, r := range imei {
+		digits[i] = int(r - '0')
+	}
+	// calculate the check digit
+	sum := 0
+	for i := 0; i < len(digits); i++ {
+		if i%2 == 1 {
+			digits[i] *= 2
+			if digits[i] > 9 {
+				digits[i] -= 9
+			}
+		}
+		sum += digits[i]
+	}
+	checkDigit := (10 - (sum % 10))
+	return strconv.Itoa(checkDigit)
 }
