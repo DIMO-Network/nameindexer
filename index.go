@@ -352,6 +352,10 @@ func calculateCheckDigit(imei string) string {
 		}
 		sum += digits[i]
 	}
-	checkDigit := (10 - (sum % 10))
+	remainder := sum % 10
+	if remainder == 0 {
+		return "0"
+	}
+	checkDigit := (10 - remainder)
 	return strconv.Itoa(checkDigit)
 }

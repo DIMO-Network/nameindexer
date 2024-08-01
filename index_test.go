@@ -145,6 +145,17 @@ func TestEncodeIndex(t *testing.T) {
 			expected: "799397MM000000StatIMEI00000000000000000000001234567890123700153000",
 		},
 		{
+			name: "Valid IMEI",
+			input: &Index{
+				Timestamp: time.Date(2020, 6, 2, 15, 30, 0, 0, time.UTC),
+				DataType:  "Stat",
+				Subject: Subject{
+					IMEI("35333897069944"),
+				},
+			},
+			expected: "799397MM000000StatIMEI00000000000000000000035333897069944000153000",
+		},
+		{
 			name: "Valid IMEI missing check digit",
 			input: &Index{
 				Timestamp: time.Date(2020, 6, 2, 15, 30, 0, 0, time.UTC),
