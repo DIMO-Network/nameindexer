@@ -139,10 +139,21 @@ func TestEncodeIndex(t *testing.T) {
 				Timestamp: time.Date(2020, 6, 2, 15, 30, 0, 0, time.UTC),
 				DataType:  "Stat",
 				Subject: Subject{
-					IMEI("012345678901234"),
+					IMEI("012345678901237"),
 				},
 			},
-			expected: "799397MM000000StatIMEI00000000000000000000001234567890123400153000",
+			expected: "799397MM000000StatIMEI00000000000000000000001234567890123700153000",
+		},
+		{
+			name: "Valid IMEI missing check digit",
+			input: &Index{
+				Timestamp: time.Date(2020, 6, 2, 15, 30, 0, 0, time.UTC),
+				DataType:  "Stat",
+				Subject: Subject{
+					IMEI("01234567890123"),
+				},
+			},
+			expected: "799397MM000000StatIMEI00000000000000000000001234567890123700153000",
 		},
 		{
 			name: "Invalid IMEI",
@@ -281,4 +292,36 @@ func compareIndices(a, b *Index) bool {
 		a.PrimaryFiller == b.PrimaryFiller &&
 		strings.TrimSpace(a.DataType) == strings.TrimSpace(b.DataType) &&
 		a.SecondaryFiller == b.SecondaryFiller
+}
+func TestCalculateCheckDigit(t *testing.T) {
+	tests := []struct {
+		imei     string
+		expected string
+	}{
+		{
+			imei:     "01234567890123",
+			expected: "7",
+		},
+		{
+			imei:     "01234567890124",
+			expected: "5",
+		},
+		{
+			imei:     "01234567890125",
+			expected: "2",
+		},
+		{
+			imei:     "1789372997",
+			expected: "4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.imei, func(t *testing.T) {
+			result := calculateCheckDigit(tt.imei)
+			if result != tt.expected {
+				t.Fatalf("calculateCheckDigit() result = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
 }
