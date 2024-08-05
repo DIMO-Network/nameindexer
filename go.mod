@@ -6,7 +6,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.26.0
 	github.com/DIMO-Network/clickhouse-infra v0.0.2
 	github.com/aws/aws-sdk-go-v2 v1.30.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.2
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.3
 	github.com/ethereum/go-ethereum v1.14.7
 	github.com/pressly/goose/v3 v3.21.1
 	github.com/stretchr/testify v1.9.0
