@@ -112,11 +112,15 @@ func TestGetLatestFileName(t *testing.T) {
 		},
 	}
 
-	indexFileService := indexrepo.New(conn, nil, "test-bucket")
+	indexFileService := indexrepo.New(conn, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filename, err := indexFileService.GetLatestFileName(context.Background(), dataType, tt.subject)
+			opts := indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &tt.subject,
+			}
+			filename, err := indexFileService.GetLatestFileName(context.Background(), opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -165,13 +169,15 @@ func TestGetDataFromFile(t *testing.T) {
 		ContentLength: ref(int64(len(content))),
 	}, nil).AnyTimes()
 
-	indexFileService := indexrepo.New(conn, mockS3Client, "test-bucket")
+	indexFileService := indexrepo.New(conn, mockS3Client)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content, err := indexFileService.GetLatestData(context.Background(), dataType, nameindexer.Subject{
-				Identifier: nameindexer.Address(tt.deviceAddr),
-			})
+			opts := indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(tt.deviceAddr)},
+			}
+			content, err := indexFileService.GetLatestData(context.Background(), "test-bucket", opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -196,7 +202,7 @@ func TestStoreFile(t *testing.T) {
 	mockS3Client := NewMockObjectGetter(ctrl)
 	mockS3Client.EXPECT().PutObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
 
-	indexFileService := indexrepo.New(conn, mockS3Client, "test-bucket")
+	indexFileService := indexrepo.New(conn, mockS3Client)
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	index := nameindexer.Index{
@@ -205,13 +211,15 @@ func TestStoreFile(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	err = indexFileService.StoreFile(ctx, &index, content)
+	err = indexFileService.StoreFile(ctx, &index, "test-bucket", content)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
-	filename, err := indexFileService.GetLatestFileName(ctx, dataType, nameindexer.Subject{
-		Identifier: nameindexer.Address(deviceAddr1),
-	})
+	opts := indexrepo.SearchOptions{
+		DataType: &dataType,
+		Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
+	}
+	filename, err := indexFileService.GetLatestFileName(ctx, opts)
 	require.NoError(t, err)
 	expectedFileName, err := nameindexer.EncodeIndex(&index)
 	require.NoError(t, err)
