@@ -314,20 +314,27 @@ func TestGetData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var expectedContent [][]byte
 			for _, fileName := range tt.expectedFiles {
 				mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 					require.Equal(t, *params.Key, fileName)
+					content := []byte(`{"data": {"` + fileName + `"}}`)
+					expectedContent = append(expectedContent, content)
 					return &s3.GetObjectOutput{
-						Body:          io.NopCloser(bytes.NewReader([]byte(`{"data": {}}`))),
-						ContentLength: ref(int64(len([]byte(`{"data": {}}`)))),
+						Body:          io.NopCloser(bytes.NewReader(content)),
+						ContentLength: ref(int64(len(content))),
 					}, nil
 				})
 			}
-			_, err := indexFileService.GetData(context.Background(), "test-bucket", 10, tt.opts)
+			data, err := indexFileService.GetData(context.Background(), "test-bucket", 10, tt.opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
 			} else {
+				require.Len(t, data, len(expectedContent))
+				for i, content := range expectedContent {
+					require.Equal(t, content, data[i])
+				}
 				require.NoError(t, err)
 			}
 		})
