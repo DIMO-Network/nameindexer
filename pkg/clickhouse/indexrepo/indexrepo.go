@@ -63,12 +63,17 @@ func (s *Service) GetLatestFileName(ctx context.Context, opts SearchOptions) (st
 }
 
 func (s *Service) GetFileNames(ctx context.Context, limit int, opts SearchOptions) ([]string, error) {
+	order := " DESC"
+	if opts.TimestampAsc {
+		order = " ASC"
+	}
 	mods := []qm.QueryMod{
 		qm.Select(chindexer.FileNameColumn),
 		qm.From(chindexer.TableName),
-		qm.OrderBy(chindexer.TimestampColumn),
+		qm.OrderBy(chindexer.TimestampColumn + order),
 		qm.Limit(limit),
 	}
+
 	optsMods, err := opts.QueryMods()
 	if err != nil {
 		return nil, err
@@ -192,6 +197,9 @@ type SearchOptions struct {
 	After time.Time
 	// Before if set only files before this time are returned.
 	Before time.Time
+	// TimestampAsc if set files are queried and returned in ascending order by timestamp.
+	// This option is not applied for the latest file query.
+	TimestampAsc bool
 	// PrimaryFiller if set only files for this primary filler are returned.
 	PrimaryFiller *string
 	// DataType if set only files for this data type are returned.
