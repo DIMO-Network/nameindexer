@@ -242,11 +242,6 @@ func TestGetData(t *testing.T) {
 	tokenIDFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)}, DataType: dataType, Timestamp: now.Add(-2 * time.Minute)})
 	imeiFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.IMEI(imei)}, DataType: dataType, Timestamp: now.Add(-1 * time.Minute)})
 
-	ctrl := gomock.NewController(t)
-	mockS3Client := NewMockObjectGetter(ctrl)
-
-	indexFileService := indexrepo.New(conn, mockS3Client)
-
 	tests := []struct {
 		name          string
 		opts          indexrepo.SearchOptions
@@ -259,7 +254,7 @@ func TestGetData(t *testing.T) {
 				DataType: &dataType,
 				Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
 			},
-			expectedFiles: []string{file1Name, file2Name, file3Name, file4Name},
+			expectedFiles: []string{file4Name, file3Name, file2Name, file1Name},
 		},
 		{
 			name: "no records with address",
@@ -292,7 +287,7 @@ func TestGetData(t *testing.T) {
 				After:    now.Add(-3 * time.Hour),
 				Before:   now.Add(-1 * time.Minute),
 			},
-			expectedFiles: []string{file3Name, file4Name, tokenIDFileName},
+			expectedFiles: []string{tokenIDFileName, file4Name, file3Name},
 		},
 		{
 			name: "data with primary filler",
@@ -300,7 +295,7 @@ func TestGetData(t *testing.T) {
 				DataType:      &dataType,
 				PrimaryFiller: ref("MM"),
 			},
-			expectedFiles: []string{file1Name, file2Name, file4Name, tokenIDFileName, imeiFileName},
+			expectedFiles: []string{imeiFileName, tokenIDFileName, file4Name, file2Name, file1Name},
 		},
 		{
 			name: "data with secondary filler",
@@ -308,11 +303,15 @@ func TestGetData(t *testing.T) {
 				DataType:        &dataType,
 				SecondaryFiller: ref("00"),
 			},
-			expectedFiles: []string{file1Name, file2Name, file3Name, tokenIDFileName, imeiFileName},
+			expectedFiles: []string{imeiFileName, tokenIDFileName, file3Name, file2Name, file1Name},
 		},
 	}
 
 	for _, tt := range tests {
+		ctrl := gomock.NewController(t)
+		mockS3Client := NewMockObjectGetter(ctrl)
+
+		indexFileService := indexrepo.New(conn, mockS3Client)
 		t.Run(tt.name, func(t *testing.T) {
 			var expectedContent [][]byte
 			for _, fileName := range tt.expectedFiles {
