@@ -51,18 +51,13 @@ func setupClickHouseContainer(t *testing.T) *container.Container {
 }
 
 // insertTestData inserts test data into ClickHouse.
-func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, subject nameindexer.Subject, timestamp time.Time) string {
-	idx := nameindexer.Index{
-		Subject:   subject,
-		DataType:  dataType,
-		Timestamp: timestamp,
-	}
-	values, err := chindexer.IndexToSlice(&idx)
+func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, index nameindexer.Index) string {
+	values, err := chindexer.IndexToSlice(&index)
 	require.NoError(t, err)
 
 	err = conn.Exec(ctx, chindexer.InsertStmt, values...)
 	require.NoError(t, err)
-	filename, err := nameindexer.EncodeIndex(&idx)
+	filename, err := nameindexer.EncodeIndex(&index)
 	require.NoError(t, err)
 	return filename
 }
@@ -79,11 +74,12 @@ func TestGetLatestFileName(t *testing.T) {
 	tokenID := uint32(1234567890)
 	imei := "123456789012345"
 	ctx := context.Background()
-	_ = insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
-		time.Now().Add(-1*time.Hour))
-	file2Name := insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, time.Now())
-	tokenIDFileName := insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)}, time.Now())
-	imeiFileName := insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.IMEI(imei)}, time.Now())
+	now := time.Now()
+	_ = insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-1 * time.Hour)})
+	file2Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now})
+	tokenIDFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)}, DataType: dataType, Timestamp: now})
+	imeiFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.IMEI(imei)}, DataType: dataType, Timestamp: now})
+
 	tests := []struct {
 		name          string
 		subject       nameindexer.Subject
@@ -112,11 +108,15 @@ func TestGetLatestFileName(t *testing.T) {
 		},
 	}
 
-	indexFileService := indexrepo.New(conn, nil, "test-bucket")
+	indexFileService := indexrepo.New(conn, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filename, err := indexFileService.GetLatestFileName(context.Background(), dataType, tt.subject)
+			opts := indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &tt.subject,
+			}
+			filename, err := indexFileService.GetLatestFileName(context.Background(), opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -137,7 +137,7 @@ func TestGetDataFromFile(t *testing.T) {
 	conn, err := chContainer.GetClickHouseAsConn()
 	require.NoError(t, err)
 	ctx := context.Background()
-	_ = insertTestData(t, ctx, conn, nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, time.Now().Add(-1*time.Hour))
+	_ = insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: time.Now().Add(-1 * time.Hour)})
 
 	tests := []struct {
 		name            string
@@ -165,13 +165,15 @@ func TestGetDataFromFile(t *testing.T) {
 		ContentLength: ref(int64(len(content))),
 	}, nil).AnyTimes()
 
-	indexFileService := indexrepo.New(conn, mockS3Client, "test-bucket")
+	indexFileService := indexrepo.New(conn, mockS3Client)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content, err := indexFileService.GetLatestData(context.Background(), dataType, nameindexer.Subject{
-				Identifier: nameindexer.Address(tt.deviceAddr),
-			})
+			opts := indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(tt.deviceAddr)},
+			}
+			content, err := indexFileService.GetLatestData(context.Background(), "test-bucket", opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -196,7 +198,7 @@ func TestStoreFile(t *testing.T) {
 	mockS3Client := NewMockObjectGetter(ctrl)
 	mockS3Client.EXPECT().PutObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
 
-	indexFileService := indexrepo.New(conn, mockS3Client, "test-bucket")
+	indexFileService := indexrepo.New(conn, mockS3Client)
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	index := nameindexer.Index{
@@ -205,17 +207,137 @@ func TestStoreFile(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	err = indexFileService.StoreFile(ctx, &index, content)
+	err = indexFileService.StoreFile(ctx, &index, "test-bucket", content)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
-	filename, err := indexFileService.GetLatestFileName(ctx, dataType, nameindexer.Subject{
-		Identifier: nameindexer.Address(deviceAddr1),
-	})
+	opts := indexrepo.SearchOptions{
+		DataType: &dataType,
+		Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
+	}
+	filename, err := indexFileService.GetLatestFileName(ctx, opts)
 	require.NoError(t, err)
 	expectedFileName, err := nameindexer.EncodeIndex(&index)
 	require.NoError(t, err)
 	require.Equal(t, expectedFileName, filename)
+}
+
+// TestGetData tests the GetData function with different SearchOptions combinations.
+func TestGetData(t *testing.T) {
+	chContainer := setupClickHouseContainer(t)
+
+	// Insert test data
+	conn, err := chContainer.GetClickHouseAsConn()
+	require.NoError(t, err)
+	deviceAddr1 := randAddress()
+	deviceAddr2 := randAddress()
+	tokenID := uint32(1234567890)
+	imei := "123456789012345"
+	ctx := context.Background()
+	now := time.Now()
+	file1Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-4 * time.Hour)})
+	file2Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-3 * time.Hour)})
+	file3Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-2 * time.Hour), PrimaryFiller: "AA"})
+	file4Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-1 * time.Hour), SecondaryFiller: "55"})
+	tokenIDFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)}, DataType: dataType, Timestamp: now.Add(-2 * time.Minute)})
+	imeiFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.IMEI(imei)}, DataType: dataType, Timestamp: now.Add(-1 * time.Minute)})
+
+	tests := []struct {
+		name          string
+		opts          indexrepo.SearchOptions
+		expectedFiles []string
+		expectedError bool
+	}{
+		{
+			name: "valid data with address",
+			opts: indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
+			},
+			expectedFiles: []string{file4Name, file3Name, file2Name, file1Name},
+		},
+		{
+			name: "no records with address",
+			opts: indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr2)},
+			},
+			expectedFiles: nil,
+		},
+		{
+			name: "valid data with token ID",
+			opts: indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)},
+			},
+			expectedFiles: []string{tokenIDFileName},
+		},
+		{
+			name: "valid data with IMEI",
+			opts: indexrepo.SearchOptions{
+				DataType: &dataType,
+				Subject:  &nameindexer.Subject{Identifier: nameindexer.IMEI(imei)},
+			},
+			expectedFiles: []string{imeiFileName},
+		},
+		{
+			name: "data within time range",
+			opts: indexrepo.SearchOptions{
+				DataType: &dataType,
+				After:    now.Add(-3 * time.Hour),
+				Before:   now.Add(-1 * time.Minute),
+			},
+			expectedFiles: []string{tokenIDFileName, file4Name, file3Name},
+		},
+		{
+			name: "data with primary filler",
+			opts: indexrepo.SearchOptions{
+				DataType:      &dataType,
+				PrimaryFiller: ref("MM"),
+			},
+			expectedFiles: []string{imeiFileName, tokenIDFileName, file4Name, file2Name, file1Name},
+		},
+		{
+			name: "data with secondary filler",
+			opts: indexrepo.SearchOptions{
+				DataType:        &dataType,
+				SecondaryFiller: ref("00"),
+			},
+			expectedFiles: []string{imeiFileName, tokenIDFileName, file3Name, file2Name, file1Name},
+		},
+	}
+
+	for _, tt := range tests {
+		ctrl := gomock.NewController(t)
+		mockS3Client := NewMockObjectGetter(ctrl)
+
+		indexFileService := indexrepo.New(conn, mockS3Client)
+		t.Run(tt.name, func(t *testing.T) {
+			var expectedContent [][]byte
+			for _, fileName := range tt.expectedFiles {
+				mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+					require.Equal(t, *params.Key, fileName)
+					content := []byte(`{"data": {"` + fileName + `"}}`)
+					expectedContent = append(expectedContent, content)
+					return &s3.GetObjectOutput{
+						Body:          io.NopCloser(bytes.NewReader(content)),
+						ContentLength: ref(int64(len(content))),
+					}, nil
+				})
+			}
+			data, err := indexFileService.GetData(context.Background(), "test-bucket", 10, tt.opts)
+
+			if tt.expectedError {
+				require.Error(t, err)
+			} else {
+				require.Len(t, data, len(expectedContent))
+				for i, content := range expectedContent {
+					require.Equal(t, content, data[i])
+				}
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func ref[T any](x T) *T {
