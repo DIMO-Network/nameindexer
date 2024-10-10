@@ -5,40 +5,29 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/DIMO-Network/model-garage/pkg/cloudevent"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
-	// DateLength is the length of the date part in the index string.
+	// DateLength is the length of the date part of an index string.
 	DateLength = 6
-	// PrimaryFillerLength is the length of the primary filler part in the index string.
-	PrimaryFillerLength = 2
-	// DataTypeLength is the length of the data type part in the index string.
-	DataTypeLength = 10
-	// SubjectLenth is the length of the subject part in the index string.
-	SubjectLenth = 40
-	// SecondaryFillerLength is the length of the secondary filler part in the index string.
-	SecondaryFillerLength = 2
-	// TimeLength is the length of the time part in the index string.
+	// FillerLength is the length of the filler parts of an index string.
+	FillerLength = 2
+	// DataTypeLength is the length of the data type part of an index string.
+	DataTypeLength = 20
+	// DIDLength is the length of the DID part of an index string.
+	DIDLength = 64
+	// TimeLength is the length of the time part of an index string.
 	TimeLength = 6
+	// AddressLength is the length of an ethereum address part of an index string.
+	AddressLength = 40
 
-	// DateStart is the starting position of the date part in the index string.
-	DateStart = 0
-	// PrimaryFillerStart is the starting position of the primary filler part in the index string.
-	PrimaryFillerStart = DateStart + DateLength
-	// DataTypeStart is the starting position of the data type part in the index string.
-	DataTypeStart = PrimaryFillerStart + PrimaryFillerLength
-	// SubjectStart is the starting position of the subject part in the index string.
-	SubjectStart = DataTypeStart + DataTypeLength
-	// SecondaryFillerStart is the starting position of the secondary filler part in the index string.
-	SecondaryFillerStart = SubjectStart + SubjectLenth
-	// TimeStart is the starting position of the time part in the index string.
-	TimeStart = SecondaryFillerStart + SecondaryFillerLength
-	// TotalLength is the total length of the index string.
-	TotalLength = DateLength + PrimaryFillerLength + DataTypeLength + SubjectLenth + SecondaryFillerLength + TimeLength
+	// TotalLength is the total length of an index string.
+	// totallength actual value is 140.
+	TotalLength = DIDLength + DateLength + FillerLength + DataTypeLength + TimeLength + AddressLength + DIDLength + FillerLength
 
 	// DateMax is the maximum value used for date calculations in the index.
 	DateMax = 999999
@@ -49,11 +38,6 @@ const (
 	DefaultPrimaryFiller = "MM"
 	// DefaultSecondaryFiller is the default filler value between the subject and time.
 	DefaultSecondaryFiller = "00"
-
-	// TokenIDPrefix is the prefix for token IDs in the index string.
-	TokenIDPrefix = "T"
-	// IMEIPrefix is the prefix for IMEI strings in the index string.
-	IMEIPrefix = "IMEI"
 )
 
 // digitRegex is a regular expression for matching digits.
@@ -69,119 +53,47 @@ func (e InvalidError) Error() string {
 
 // Index represents the components of a decoded index.
 type Index struct {
+	// Subject is the subject of the data represented by the index.
+	Subject cloudevent.NFTDID
 	// Timestamp is the full timestamp used for date and time.
 	Timestamp time.Time
 	// PrimaryFiller is the filler value between the date and data type, typically "MM". If empty, defaults to "MM".
 	PrimaryFiller string
 	// DataType is the type of data, left-padded with zeros or truncated to 10 characters.
 	DataType string
-	// Subject is the subject of the data represented by the index.
-	Subject Subject
+	// Source is the source of the data represented by the index.
+	Source common.Address
+	// Producer is the producer of the data represented by the index.
+	Producer cloudevent.NFTDID
 	// SecondaryFiller is the filler value between the subject and time, typically "00". If empty, defaults to "00".
 	SecondaryFiller string
-}
-
-// Subject represents the subject of the data represented by the index.
-// The subject can be an Ethereum address or a token ID.
-// if both are set, the address is used.
-type Subject struct {
-	Identifier IsIdentifier
-}
-
-// IsIdentifier is an interface for subject types.
-type IsIdentifier interface {
-	isIdentifier()
-}
-
-// Address is a subject type representing an Ethereum address.
-type Address common.Address
-
-func (Address) isIdentifier() {}
-
-// TokenID is a subject type representing a token ID.
-type TokenID uint32
-
-func (TokenID) isIdentifier() {}
-
-// IMEI is a subject type representing an IMEI string.
-type IMEI string
-
-func (IMEI) isIdentifier() {}
-
-// String encodes a subject into a string and satisfies the fmt.Stringer interface.
-func (s Subject) String() string {
-	switch sub := s.Identifier.(type) {
-	case Address:
-		return common.Address(sub).Hex()[2:] // Remove "0x" prefix
-	case TokenID:
-		return fmt.Sprintf("%s%0*d", TokenIDPrefix, SubjectLenth-len(TokenIDPrefix), sub)
-	case IMEI:
-		return fmt.Sprintf("%s%0*s", IMEIPrefix, SubjectLenth-(len(IMEIPrefix)), sub)
-	default:
-		return ""
-	}
-}
-
-// Value satisfies sql/driver.Valuer interface for Subject.
-func (s Subject) Value() (string, error) {
-	return s.String(), nil
-}
-
-// Scan satisfies sql.Scanner interface for Subject.
-func (s *Subject) Scan(value any) error {
-	if value == nil {
-		return nil
-	}
-	switch v := value.(type) {
-	case string:
-		subject, err := DecodeSubject(v)
-		if err != nil {
-			return err
-		}
-		*s = subject
-		return nil
-	default:
-		return InvalidError("invalid subject type")
-	}
-}
-
-// DecodeSubject decodes a string into a subject.
-func DecodeSubject(encoded string) (Subject, error) {
-	if strings.HasPrefix(encoded, TokenIDPrefix) && len(encoded) > len(TokenIDPrefix) {
-		tokenID64, err := strconv.ParseUint(encoded[len(TokenIDPrefix):], 10, 32)
-		if err != nil {
-			return Subject{}, fmt.Errorf("token ID: %w", err)
-		}
-		tokenID := uint32(tokenID64)
-		return Subject{TokenID(tokenID)}, nil
-	}
-	if strings.HasPrefix(encoded, IMEIPrefix) && len(encoded) > len(IMEIPrefix) {
-		imei := IMEI(encoded[len(TokenIDPrefix):])
-		return Subject{imei}, nil
-	}
-
-	address := common.HexToAddress(encoded)
-	return Subject{Address(address)}, nil
 }
 
 // EncodeIndex creates an indexable name string from the Index struct.
 // This function will modify the index to have correctly padded values.
 // The index string format is:
 //
-//	date + primaryFiller + dataType + Subject + secondaryFiller + time
+//	subject + date + primaryFiller + dataType + time + secondaryFiller + source + producer
 //
 // where:
+//   - subject is the NFTDID of the data's subject
+//     -- chainId + contractAddress + tokenID
+//     -- chainId is a 16-character hexadecimal string representing the uint64 chain ID
+//     -- contractAddress is a 40-character hexadecimal string representing the contract address
+//     -- tokenID is an 8-character hexadecimal string representing the uint32 token ID
 //   - date is calculated as 999999 - (<two-digit-year>*10000 + <two-digit-month>*100 + <two-digit-day>)
 //   - primaryFiller is a constant string of length 2
-//   - dataType is the data type left-padded with zeros or truncated to 10 characters
-//   - subject is one of the following
-//     1. hexadecimal representation of the device's address
-//     2. TokenID prefixed with "T"
-//     3. IMEI prefixed with "IMEI"
+//   - dataType is the data type left-padded with zeros or truncated to 20 characters
 //   - secondaryFiller is a constant string of length 2
 //   - time is the time in UTC in the format HHMMSS
-func EncodeIndex(index *Index) (string, error) {
-	err := SetDefaultsAndValidateIndex(index)
+//   - source is a 40-character hexadecimal string representing the source address
+//   - producer is the NFTDID of the data's producer
+//     -- chainId + contractAddress + tokenID
+//     -- chainId is a 16-character hexadecimal string representing the uint64 chain ID
+//     -- contractAddress is a 40-character hexadecimal string representing the contract address
+//     -- tokenID is an 8-character hexadecimal string representing the uint32 token ID
+func EncodeIndex(origIndex *Index) (string, error) {
+	index, err := SetDefaultsAndValidateIndex(origIndex)
 	if err != nil {
 		return "", err
 	}
@@ -191,16 +103,27 @@ func EncodeIndex(index *Index) (string, error) {
 
 	// Format time part
 	timePart := index.Timestamp.UTC().Format(HhmmssFormat)
+	subject, err := EncodeNFTDID(index.Subject)
+	if err != nil {
+		return "", fmt.Errorf("subject: %w", err)
+	}
+	producer, err := EncodeNFTDID(index.Producer)
+	if err != nil {
+		return "", fmt.Errorf("producer: %w", err)
+	}
 
+	unPrefixedSource := EncodeAddress(index.Source)
 	// Construct the index string
 	encodedIndex := fmt.Sprintf(
-		"%06d%s%s%s%s%s",
+		"%s%06d%s%s%s%s%s%s",
+		subject,
 		datePart,
 		index.PrimaryFiller,
 		index.DataType,
-		index.Subject,
 		index.SecondaryFiller,
 		timePart,
+		unPrefixedSource,
+		producer,
 	)
 
 	return encodedIndex, nil
@@ -224,13 +147,15 @@ func DecodeIndex(index string) (*Index, error) {
 		return nil, InvalidError(fmt.Sprintf("length %d is not %d", len(index), TotalLength))
 	}
 
-	// Extract parts of the index using start positions.
-	datePart := index[DateStart:PrimaryFillerStart]              // 6 characters for date
-	primaryFillerPart := index[PrimaryFillerStart:DataTypeStart] // 2 characters for primary filler
-	dataTypePart := index[DataTypeStart:SubjectStart]            // 10 characters for data type
-	subjectPart := index[SubjectStart:SecondaryFillerStart]      // 40 characters for subject
-	secondaryFillerPart := index[SecondaryFillerStart:TimeStart] // 2 characters for secondary filler
-	timePart := index[TimeStart:]                                // 6 characters for time
+	var start int
+	subjectPart, start := getNextPart(index, start, DIDLength)
+	datePart, start := getNextPart(index, start, DateLength)
+	primaryFillerPart, start := getNextPart(index, start, FillerLength)
+	dataTypePart, start := getNextPart(index, start, DataTypeLength)
+	secondaryFillerPart, start := getNextPart(index, start, FillerLength)
+	timePart, start := getNextPart(index, start, TimeLength)
+	sourcePart, start := getNextPart(index, start, AddressLength)
+	producerPart, _ := getNextPart(index, start, DIDLength)
 
 	// Decode date
 	dateInt, err := strconv.Atoi(datePart)
@@ -250,7 +175,7 @@ func DecodeIndex(index string) (*Index, error) {
 		return nil, InvalidError("day out of range")
 	}
 
-	subject, err := DecodeSubject(subjectPart)
+	subject, err := DecodeNFTDIDIndex(subjectPart)
 	if err != nil {
 		return nil, fmt.Errorf("subject part: %w", err)
 	}
@@ -262,100 +187,123 @@ func DecodeIndex(index string) (*Index, error) {
 	}
 	fullTime := time.Date(year, time.Month(month), day, ts.Hour(), ts.Minute(), ts.Second(), 0, time.UTC)
 
+	if !common.IsHexAddress(sourcePart) {
+		return nil, InvalidError("source is not a valid address")
+	}
+
+	producer, err := DecodeNFTDIDIndex(producerPart)
+	if err != nil {
+		return nil, fmt.Errorf("producer part: %w", err)
+	}
+
 	decodedIndex := &Index{
+		Subject:         subject,
 		Timestamp:       fullTime,
 		PrimaryFiller:   primaryFillerPart,
 		DataType:        dataTypePart,
-		Subject:         subject,
+		Source:          common.HexToAddress(sourcePart),
+		Producer:        producer,
 		SecondaryFiller: secondaryFillerPart,
 	}
 
 	return decodedIndex, nil
 }
 
+func getNextPart(encodedIndex string, start, offset int) (string, int) {
+	end := start + offset
+	value := encodedIndex[start:end]
+	nextStart := end
+	return value, nextStart
+}
+
 // SetDefaultsAndValidateIndex sets default values for empty fields and validates the index.
-// This function will modify the index to have correctly padded values.
-func SetDefaultsAndValidateIndex(index *Index) error {
+func SetDefaultsAndValidateIndex(index *Index) (*Index, error) {
 	if index == nil {
-		return InvalidError("nil index")
+		return nil, InvalidError("nil index")
 	}
+	retIndex := *index
 	// Set default fillers if empty
-	if index.PrimaryFiller == "" {
-		index.PrimaryFiller = DefaultPrimaryFiller
+	if retIndex.PrimaryFiller == "" {
+		retIndex.PrimaryFiller = DefaultPrimaryFiller
 	}
-	if index.SecondaryFiller == "" {
-		index.SecondaryFiller = DefaultSecondaryFiller
+	if retIndex.SecondaryFiller == "" {
+		retIndex.SecondaryFiller = DefaultSecondaryFiller
 	}
 
 	// Validate primary filler length
-	if len(index.PrimaryFiller) != PrimaryFillerLength {
-		return InvalidError("primary filler length")
+	if len(retIndex.PrimaryFiller) != FillerLength {
+		return nil, InvalidError("primary filler length")
 	}
 	// Validate secondary filler length
-	if len(index.SecondaryFiller) != SecondaryFillerLength {
-		return InvalidError("secondary filler length")
+	if len(retIndex.SecondaryFiller) != FillerLength {
+		return nil, InvalidError("secondary filler length")
 	}
-	var err error
-	index.DataType, err = SantatizeDataType(index.DataType)
-	if err != nil {
-		return err
-	}
-	// check that imei is valid regex
-	if imei, ok := index.Subject.Identifier.(IMEI); ok {
-		if !digitRegex.MatchString(string(imei)) {
-			return InvalidError(fmt.Sprintf("IMEI %s can only be digits", imei))
-		}
-		if len(imei) == 14 {
-			index.Subject.Identifier = IMEI(string(imei) + calculateCheckDigit(string(imei)))
-		} else if len(imei) != 15 {
-			return InvalidError("IMEI must be 14 or 15 digits")
-		}
-	}
+	retIndex.DataType = SantatizeDataType(index.DataType)
 
 	// Format date part
-	if index.Timestamp.IsZero() || index.Timestamp.Year() < 2000 || index.Timestamp.Year() > 2099 {
-		return InvalidError("timestamp year must be between 2000 and 2099")
+	if retIndex.Timestamp.IsZero() || retIndex.Timestamp.Year() < 2000 || retIndex.Timestamp.Year() > 2099 {
+		return nil, InvalidError("timestamp year must be between 2000 and 2099")
 	}
 
-	return nil
+	return &retIndex, nil
 }
 
 // SantatizeDataType pads the data type with zeros if shorter than required.
-// returns an error if the data type is too long.
-func SantatizeDataType(dataType string) (string, error) {
+// It truncates the data type if longer than required.
+func SantatizeDataType(dataType string) string {
 	// Validate data type length
 	if len(dataType) > DataTypeLength {
-		return "", InvalidError("data type too long")
+		// truncate data type if longer than required
+		return dataType[:DataTypeLength]
 	}
 	// Pad data type with zeros if shorter than required
 	if len(dataType) < DataTypeLength {
-		return fmt.Sprintf("%0*s", DataTypeLength, dataType), nil
+		return fmt.Sprintf("%0*s", DataTypeLength, dataType)
 	}
-	return dataType, nil
+	return dataType
 }
 
-// calculateCheckDigit calculates the check digit for an IMEI string. using the Luhn algorithm.
-func calculateCheckDigit(imei string) string {
-	// convert to a slice of digits
-	digits := make([]int, len(imei))
-	for i, r := range imei {
-		digits[i] = int(r - '0')
+func EncodeAddress(address common.Address) string {
+	return address.Hex()[2:]
+}
+
+// EncodeNFTDID encodes an NFTDID struct into an indexable string.
+// This format is different from the standard NFTDID.
+func EncodeNFTDID(did cloudevent.NFTDID) (string, error) {
+	if !common.IsHexAddress(did.ContractAddress.Hex()) {
+		return "", InvalidError("contract address is not a valid address")
 	}
-	// calculate the check digit
-	sum := 0
-	for i := 0; i < len(digits); i++ {
-		if i%2 == 1 {
-			digits[i] *= 2
-			if digits[i] > 9 {
-				digits[i] -= 9
-			}
-		}
-		sum += digits[i]
+	unPrefixedAddr := EncodeAddress(did.ContractAddress)
+	return fmt.Sprintf("%016x%s%08x", did.ChainID, unPrefixedAddr, did.TokenID), nil
+}
+
+// DecodeNFTDIDIndex decodes an NFTDID string into a cloudevent.NFTDID struct.
+func DecodeNFTDIDIndex(indexNFTDID string) (cloudevent.NFTDID, error) {
+	if len(indexNFTDID) != DIDLength {
+		return cloudevent.NFTDID{}, InvalidError("invalid NFTDID length")
 	}
-	remainder := sum % 10
-	if remainder == 0 {
-		return "0"
+	var start int
+	chainIDPart, start := getNextPart(indexNFTDID, start, 16)
+	chainID, err := strconv.ParseUint(chainIDPart, 16, 64)
+	if err != nil {
+		return cloudevent.NFTDID{}, fmt.Errorf("chain ID: %w", err)
 	}
-	checkDigit := (10 - remainder)
-	return strconv.Itoa(checkDigit)
+
+	contractPart, start := getNextPart(indexNFTDID, start, AddressLength)
+	if !common.IsHexAddress(contractPart) {
+		return cloudevent.NFTDID{}, InvalidError("contract address is not a valid address")
+	}
+	contractAddress := common.HexToAddress(contractPart)
+
+	tokenIDPart, _ := getNextPart(indexNFTDID, start, 8)
+	tokenID, err := strconv.ParseUint(tokenIDPart, 16, 32)
+	if err != nil {
+		return cloudevent.NFTDID{}, fmt.Errorf("token ID: %w", err)
+	}
+
+	return cloudevent.NFTDID{
+		ChainID:         chainID,
+		ContractAddress: contractAddress,
+		TokenID:         uint32(tokenID),
+	}, nil
 }
