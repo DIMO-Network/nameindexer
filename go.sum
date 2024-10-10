@@ -74,6 +74,8 @@ github.com/DATA-DOG/go-sqlmock v1.4.1 h1:ThlnYciV1iM/V0OSF/dtkqWb6xo5qITT1TJBG1M
 github.com/DATA-DOG/go-sqlmock v1.4.1/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/DIMO-Network/clickhouse-infra v0.0.2 h1:bKbBWgsZEqQKrXCfc93mag0JALg747SoNFODybgutxA=
 github.com/DIMO-Network/clickhouse-infra v0.0.2/go.mod h1:NX0pmwYzZj1M9sh1RRhFjhMZ0J9OkuMgXMA9Jad6lX0=
+github.com/DIMO-Network/model-garage v0.3.2-0.20241009124904-d59322096b3e h1:Gzgc8JjbcRkN3q5FeZpNlN1bv4LLAc2f/0dGAfTHdxo=
+github.com/DIMO-Network/model-garage v0.3.2-0.20241009124904-d59322096b3e/go.mod h1:0wRJbAtwF66RZE/+6WUOPOVL3cSO9eozzuE+bQ4JWs8=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=

@@ -2,12 +2,10 @@ module github.com/DIMO-Network/nameindexer
 
 go 1.22.8
 
-replace github.com/DIMO-Network/model-garage => ../model-garage
-
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.28.3
 	github.com/DIMO-Network/clickhouse-infra v0.0.2
-	github.com/DIMO-Network/model-garage v0.3.1
+	github.com/DIMO-Network/model-garage v0.3.2-0.20241009124904-d59322096b3e
 	github.com/aws/aws-sdk-go-v2 v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.0
 	github.com/ethereum/go-ethereum v1.14.11
