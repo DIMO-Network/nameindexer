@@ -44,10 +44,7 @@ const (
 // This function will modify the index to have correctly padded values.
 // The order of the elements in the array match the order of the columns in the table.
 func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
-	index, err := nameindexer.SetDefaultsAndValidateIndex(origIndex)
-	if err != nil {
-		return nil, fmt.Errorf("set defaults and validate index: %w", err)
-	}
+	index := nameindexer.WithDefaults(origIndex)
 	fileName, err := nameindexer.EncodeIndex(origIndex)
 	if err != nil {
 		return nil, fmt.Errorf("encode index: %w", err)
@@ -61,12 +58,14 @@ func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encode producer: %w", err)
 	}
+	dateType := nameindexer.EncodeDataType(index.DataType)
+
 	return []any{
 		subject,               // Vehicle or Device DID
 		index.Timestamp,       // Timestamp
 		index.PrimaryFiller,   // DIMO event type (status, fingerprint, connectivity)
 		source,                // Source Ethereum address
-		index.DataType,        // DataVersion
+		dateType,              // DataVersion
 		index.SecondaryFiller, // Secondary filler
 		producer,              // Producer DID
 		fileName,

@@ -22,21 +22,24 @@ func TestEncodeIndex(t *testing.T) {
 			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "",
-				DataType:      "Stat/2.0.0",
+				DataType:      "Stat_2.0.0",
 				Subject: cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
 				},
 				SecondaryFiller: "",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
 				},
 			},
-			expected:  strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + "00000001" + "759388" + "MM" + "0000000000Stat/2.0.0" + "00" + "153000" + strings.Repeat("0", 40) + "0000000000000000000000000000000000000000000000000000000000000000",
+			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
+				"00000001" + "759388" + "153000" + "MM" +
+				"6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" +
+				"00" + strings.Repeat("0", 64),
 			expectErr: false,
 		},
 		{
@@ -44,21 +47,24 @@ func TestEncodeIndex(t *testing.T) {
 			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "XX",
-				DataType:      "Stat/2.0.0",
+				DataType:      "Stat_2.0.0",
 				Subject: cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
 				},
 				SecondaryFiller: "99",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
-					ChainID:         0,
-					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
-					TokenID:         0,
+					ChainID:         153,
+					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
+					TokenID:         3649,
 				},
 			},
-			expected:  strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + "00000001" + "759388" + "XX" + "0000000000Stat/2.0.0" + "99" + "153000" + strings.Repeat("0", 40) + "0000000000000000000000000000000000000000000000000000000000000000",
+			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
+				"00000001" + "759388" + "153000" + "XX" +
+				"6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" +
+				"99" + "0000000000000099" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + "00000e41",
 			expectErr: false,
 		},
 		{
@@ -73,14 +79,17 @@ func TestEncodeIndex(t *testing.T) {
 					TokenID:         1,
 				},
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
 				},
 			},
-			expected:  strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + "00000001" + "759388" + "MM" + strings.Repeat("0", 16) + "Stat" + "00" + "153000" + strings.Repeat("0", 40) + "0000000000000000000000000000000000000000000000000000000000000000",
+			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
+				"00000001" + "759388" + "153000" + "MM" +
+				"6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 16) +
+				"Stat" + "00" + strings.Repeat("0", 64),
 			expectErr: false,
 		},
 		{
@@ -88,14 +97,14 @@ func TestEncodeIndex(t *testing.T) {
 			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MMM",
-				DataType:      "Stat/2.0.0",
+				DataType:      "Stat_2.0.0",
 				Subject: cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
 				},
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
@@ -110,14 +119,14 @@ func TestEncodeIndex(t *testing.T) {
 			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MM",
-				DataType:      "Stat/2.0.0",
+				DataType:      "Stat_2.0.0",
 				Subject: cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
 				},
 				SecondaryFiller: "000",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
@@ -139,14 +148,17 @@ func TestEncodeIndex(t *testing.T) {
 					TokenID:         1,
 				},
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
 				},
 			},
-			expected:  strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + "00000001" + "759388" + "MM" + "SuperDuperDataValidF" + "00" + "153000" + strings.Repeat("0", 40) + strings.Repeat("0", 64),
+			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
+				"00000001" + "759388" + "153000" + "MM" +
+				"6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + "SuperDuperDataValidF" +
+				"00" + strings.Repeat("0", 64),
 			expectErr: false,
 		},
 		{
@@ -161,7 +173,7 @@ func TestEncodeIndex(t *testing.T) {
 					TokenID:         1,
 				},
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
@@ -192,8 +204,6 @@ func TestEncodeIndex(t *testing.T) {
 	}
 }
 
-// 0000000000000001C57D6D57fcA59d0517038c968A1b831B071FA67900000001759388XX0000000000Stat/2.0.09915300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-// 0000000000000001c57d6d57fca59d0517038c968a1b831b071fa67900000001759388XX0000000000Stat/2.0.09915300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 func TestDecodeIndex(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -204,19 +214,19 @@ func TestDecodeIndex(t *testing.T) {
 		{
 			name: "Valid index decoding",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"00000001" + "759388" + "MM" + "0000000000Stat/2.0.0" + "00" + "153000" + strings.Repeat("0", 40) +
+				"00000001" + "759388" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
 				strings.Repeat("0", 15) + "8" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + strings.Repeat("0", 7) + "7",
 			expected: Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MM",
-				DataType:      "0000000000Stat/2.0.0",
+				DataType:      "Stat_2.0.0",
 				Subject: cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
 				},
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         8,
 					ContractAddress: common.HexToAddress("bA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
@@ -228,40 +238,40 @@ func TestDecodeIndex(t *testing.T) {
 		{
 			name: "Invalid month",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"99999999" + "123426" + "MM" + "0000000000Stat/2.0.0" + "00" + "153000" + strings.Repeat("0", 40) +
+				"99999999" + "123426" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
 			expectErr: true,
 		},
 		{
 			name: "Invalid day",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"99999999" + "759201" + "MM" + "0000000000Stat/2.0.0" + "00" + "153000" + strings.Repeat("0", 40) +
+				"99999999" + "759201" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
 			expectErr: true,
 		},
 		{
 			name: "Short index string",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"00000001" + "759388" + "MM" + "0000000000Stat/2",
+				"00000001" + "759388" + "MM" + "0000000000Stat_2",
 			expected:  Index{},
 			expectErr: true,
 		},
 		{
 			name: "DataType needs trimming",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"00000001" + "759388" + "MM" + "0000000000000000Stat" + "00" + "153000" + strings.Repeat("0", 40) +
+				"00000001" + "759388" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 16) + "Stat" + "00" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
 			expected: Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MM",
-				DataType:      "0000000000000000Stat",
+				DataType:      "Stat",
 				Subject: cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
 				},
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress(strings.Repeat("0", 40)),
+				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
 				Producer: cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
@@ -273,28 +283,28 @@ func TestDecodeIndex(t *testing.T) {
 		{
 			name: "Empty secondary filler",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"00000001" + "759388" + "MM" + "0000000000Stat/2.0.0" + "153000" + strings.Repeat("0", 40) +
+				"00000001" + "759388" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
 			expectErr: true,
 		},
 		{
 			name: "Invalid month",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"123426" + "MM" + "0000000000Stat/2.0.0" + "00" + "153000" + strings.Repeat("0", 40) +
+				"123426" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
 			expectErr: true,
 		},
 		{
 			name: "Invalid day",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"759201" + "MM" + "0000000000Stat/2.0.0" + "00" + "153000" + strings.Repeat("0", 40) +
+				"759201" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
 			expectErr: true,
 		},
 		{
 			name: "Invalid time part",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"759388" + "MM" + "0000000000Stat/2.0.0" + "00" + "00453000" + strings.Repeat("0", 40) +
+				"759388" + "00453000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
 			expectErr: true,
 		},
@@ -312,10 +322,7 @@ func TestDecodeIndex(t *testing.T) {
 			if err != nil {
 				t.Fatalf("DecodeIndex() error = %v, expectErr %v", err, tt.expectErr)
 			}
-			index, err := SetDefaultsAndValidateIndex(&tt.expected)
-			if err != nil {
-				t.Fatalf("SetDefaultsAndValidateIndex() error = %v", err)
-			}
+			index := WithDefaults(&tt.expected)
 			if !reflect.DeepEqual(*result, *index) {
 				t.Fatalf("DecodeIndex() result = %+v, expected %+v", *result, *index)
 			}

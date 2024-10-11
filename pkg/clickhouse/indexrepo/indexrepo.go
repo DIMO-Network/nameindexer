@@ -228,7 +228,7 @@ func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
 		mods = append(mods, qm.Where(chindexer.PrimaryFillerColumn+" = ?", *o.PrimaryFiller))
 	}
 	if o.DataType != nil {
-		paddedDataType := nameindexer.SantatizeDataType(*o.DataType)
+		paddedDataType := nameindexer.EncodeDataType(*o.DataType)
 		mods = append(mods, qm.Where(chindexer.DataTypeColumn+" = ?", paddedDataType))
 	}
 	if o.Subject != nil {

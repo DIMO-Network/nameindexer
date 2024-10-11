@@ -10,13 +10,11 @@ import (
 func cloudTypeToFiller(status string) string {
 	switch status {
 	case "status":
-		return "0S"
+		return "MA"
 	case "fingerprint":
-		return "0F"
-	case "connectivity":
-		return "0C"
+		return "ME"
 	default:
-		return "00"
+		return "MM"
 	}
 }
 
@@ -54,8 +52,17 @@ func EncodeCloudEvent(cloudEvent *cloudevent.CloudEventHeader, secondaryFiller s
 	return EncodeIndex(index)
 }
 
-type DID struct {
-	ChainID         string         `json:"chainId"`
-	ContractAddress common.Address `json:"contract"`
-	TokenID         uint32         `json:"tokenId"`
+func DecodeCloudEvent(index string) (*cloudevent.CloudEventHeader, string, error) {
+	decodedIndex, err := DecodeIndex(index)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to decode index: %w", err)
+	}
+	cloudEvent := &cloudevent.CloudEventHeader{
+		Subject:     decodedIndex.Subject.String(),
+		Time:        decodedIndex.Timestamp,
+		Type:        decodedIndex.PrimaryFiller,
+		DataVersion: decodedIndex.DataType,
+		Producer:    decodedIndex.Producer.String(),
+	}
+	return cloudEvent, decodedIndex.SecondaryFiller, nil
 }

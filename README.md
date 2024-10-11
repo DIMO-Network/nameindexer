@@ -8,24 +8,27 @@ This repository is responsible for creating and managing indexable names for obj
 
 The index string format is:
 
-`date + primaryFiller + dataType + Subject + secondaryFiller + time`
+subject + date + time + primaryFiller + source + dataType + secondaryFiller + producer + optional
 
 where:
 
-- `Date` is calculated as 999999 - (<two-digit-year>*10000 + <two-digit-month>*100 + <two-digit-day>)
-  - Ex. To store The date Mar 8, 2024 it would be 999999 - 240308 = 759691 This will mean new dates have a lower number and thus get sorted first.
-- `PrimaryFiller` is a constant string of length 2
-- Two filler characters default "MM" (MM stands for MiddleMiddle)
-- `DataType` is the data type left-padded with zeros or truncated to 10 characters
-  - Ex. “Synth2.0.1” or “0Stat4.3.2"
-- `Subject` is one of the following
-  - Hexadecimal representation of the device's etherium address
-  - TokenID prefixed with "T" left padded with zeros
-  - IMEI prefixed with "IMEI" left padded with zeros
-  - Ex. "0x12AE66CDc592e10B60f9097a7b0D3C59fce29876" or "T0000000000000001" or "IMEI000000000000001"
-- `SecondaryFiller` is a constant string of length 2
-  - 00 (Allows per vehicle sorting) Could be packet sequence number
-- `Time` is the time in UTC in the format HHMMSS
+- subject is the NFTDID of the data's subject
+  - chainId + contractAddress + tokenID
+  - chainId is a 16-character hexadecimal string representing the uint64 chain ID
+  - contractAddress is a 40-character hexadecimal string representing the contract address
+  - tokenID is an 8-character hexadecimal string representing the uint32 token ID
+- date is calculated as 999999 - (<two-digit-year>*10000 + <two-digit-month>*100 + <two-digit-day>)
+- time is the time in UTC in the format HHMMSS
+- primaryFiller is a constant string of length 2
+- source is a 40-character hexadecimal string representing the source address
+- dataType is the data type left-padded with `!` or truncated to 20 characters
+- secondaryFiller is a constant string of length 2
+- producer is the NFTDID of the data's producer
+  - chainId + contractAddress + tokenID
+  - chainId is a 16-character hexadecimal string representing the uint64 chain ID
+  - contractAddress is a 40-character hexadecimal string representing the contract address
+  - tokenID is an 8-character hexadecimal string representing the uint32 token ID
+- optional is an optional string that can be appended to the index
 
 # Development
 
