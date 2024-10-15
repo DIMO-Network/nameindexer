@@ -25,6 +25,8 @@ const (
 	SourceColumn = "source"
 	// ProducerColumn is the name of the producer column in Clickhouse.
 	ProducerColumn = "producer"
+	// OptionalColumn is the name of the optional column in Clickhouse.
+	OptionalColumn = "optional"
 
 	// InsertStmt is the SQL statement for inserting a row into Clickhouse.
 	InsertStmt = "INSERT INTO " + TableName + " (" +
@@ -35,8 +37,9 @@ const (
 		DataTypeColumn + ", " +
 		SecondaryFillerColumn + ", " +
 		ProducerColumn + ", " +
+		OptionalColumn + ", " +
 		FileNameColumn +
-		") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+		") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	// InsertStm = fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", TableName, TimestampColumn, PrimaryFillerColumn, DataTypeColumn, SubjectColumn, SecondaryFillerColumn, SourceColumn, FileNameColumn, ProducerColumn)
 )
 
@@ -68,6 +71,7 @@ func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
 		dateType,              // DataVersion
 		index.SecondaryFiller, // Secondary filler
 		producer,              // Producer DID
+		index.Optional,        // Optional
 		fileName,
 	}, nil
 }
