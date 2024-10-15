@@ -21,7 +21,6 @@ func main() {
 	}
 
 	dbstring := args[1]
-	fmt.Println(dbstring)
 	dbOptions, err := clickhouse.ParseDSN(dbstring)
 	if err != nil {
 		log.Fatalf("goose: failed to parse DB string: %v\n", err)

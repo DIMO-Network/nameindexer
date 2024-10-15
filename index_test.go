@@ -329,14 +329,3 @@ func TestDecodeIndex(t *testing.T) {
 		})
 	}
 }
-
-func compareIndices(a, b *Index) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-
-	return a.Subject.ContractAddress.Hex() == b.Subject.ContractAddress.Hex() && a.Timestamp.Equal(b.Timestamp) &&
-		a.PrimaryFiller == b.PrimaryFiller &&
-		strings.TrimSpace(a.DataType) == strings.TrimSpace(b.DataType) &&
-		a.SecondaryFiller == b.SecondaryFiller && a.Subject == b.Subject && a.Producer == b.Producer && a.Source == b.Source
-}

@@ -3,7 +3,6 @@ package migrations_test
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -41,14 +40,11 @@ func TestMigration(t *testing.T) {
 		Timestamp:       time.Now(),
 		PrimaryFiller:   "0S",
 		DataType:        "Stat/2.0.0",
-		Subject:         legacy.Subject{legacy.TokenID(3)},
+		Subject:         legacy.Subject{Identifier: legacy.TokenID(3)},
 		SecondaryFiller: "00",
 	}
 	err = insesrtOldIndex(conn, oldIdx)
 	require.NoError(t, err, "Failed to insert old index")
-
-	err = selectAllAndPrint(ctx, conn, localch.TableName)
-	require.NoError(t, err, "Failed to select all from table")
 
 	err = migrations.RunGoose(ctx, []string{"up", "-v"}, db)
 	require.NoError(t, err, "Failed to run migration")
@@ -63,9 +59,6 @@ func TestMigration(t *testing.T) {
 	}
 	err = insertIndex(conn, &newIdx)
 	require.NoError(t, err, "Failed to insert new index")
-
-	err = selectAllAndPrint(ctx, conn, localch.TableName)
-	require.NoError(t, err, "Failed to select all from table")
 
 	// Iterate over the rows and check the column names
 	cols, err := getOrderByCols(ctx, conn, localch.TableName)
@@ -106,44 +99,6 @@ func insesrtOldIndex(conn clickhouse.Conn, index *legacy.Index) error {
 	err = conn.Exec(context.Background(), oldInsertStmt, index.Timestamp, index.PrimaryFiller, index.DataType, index.Subject, index.SecondaryFiller, fileName)
 	if err != nil {
 		return fmt.Errorf("failed to insert old index: %w", err)
-	}
-	return nil
-}
-
-func selectAllAndPrint(ctx context.Context, conn clickhouse.Conn, tableName string) error {
-	selectStm := "SELECT * FROM " + tableName + ";"
-	rows, err := conn.Query(ctx, selectStm)
-	if err != nil {
-		return fmt.Errorf("failed to select all from %s: %w", tableName, err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		colTpyes := rows.ColumnTypes()
-		retSlice := make([]any, len(colTpyes))
-		for i, col := range colTpyes {
-			val := reflect.New(col.ScanType()).Interface()
-			retSlice[i] = val
-		}
-
-		err = rows.Scan(retSlice...)
-		if err != nil {
-			return fmt.Errorf("failed to scan row: %w", err)
-		}
-		fmt.Println()
-		for i, val := range retSlice {
-			val := reflect.ValueOf(val)
-			derefVal := val.Elem().Interface()
-			if strVal, ok := derefVal.(string); ok {
-				strVal = strings.Trim(strVal, "\x00")
-				fmt.Printf("%v\n", strVal)
-				for _ = range strVal {
-					fmt.Printf("X")
-				}
-				fmt.Println()
-			}
-			fmt.Printf("%v: %+v\n", colTpyes[i].Name(), derefVal)
-		}
-		fmt.Println()
 	}
 	return nil
 }

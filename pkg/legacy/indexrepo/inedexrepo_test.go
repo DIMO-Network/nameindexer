@@ -4,11 +4,8 @@ package indexrepo_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"log"
-	reflect "reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -355,42 +352,4 @@ func randAddress() common.Address {
 		log.Fatalf("Failed to generate private key: %v", err)
 	}
 	return crypto.PubkeyToAddress(privateKey.PublicKey)
-}
-
-func selectAllAndPrint(ctx context.Context, conn clickhouse.Conn, tableName string) error {
-	selectStm := "SELECT * FROM " + tableName + ";"
-	rows, err := conn.Query(ctx, selectStm)
-	if err != nil {
-		return fmt.Errorf("failed to select all from %s: %w", tableName, err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		colTpyes := rows.ColumnTypes()
-		retSlice := make([]any, len(colTpyes))
-		for i, col := range colTpyes {
-			val := reflect.New(col.ScanType()).Interface()
-			retSlice[i] = val
-		}
-
-		err = rows.Scan(retSlice...)
-		if err != nil {
-			return fmt.Errorf("failed to scan row: %w", err)
-		}
-		fmt.Println()
-		for i, val := range retSlice {
-			val := reflect.ValueOf(val)
-			derefVal := val.Elem().Interface()
-			if strVal, ok := derefVal.(string); ok {
-				strVal = strings.Trim(strVal, "\x00")
-				fmt.Printf("%v\n", strVal)
-				for _ = range strVal {
-					fmt.Printf("X")
-				}
-				fmt.Println()
-			}
-			fmt.Printf("%v: %+v\n", colTpyes[i].Name(), derefVal)
-		}
-		fmt.Println()
-	}
-	return nil
 }

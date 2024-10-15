@@ -3,7 +3,6 @@ package nameindexer
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -41,9 +40,6 @@ const (
 
 	DataTypePadding = "!"
 )
-
-// digitRegex is a regular expression for matching digits.
-var digitRegex = regexp.MustCompile(`^\d+$`)
 
 // InvalidError represents an error type for invalid arguments.
 type InvalidError string
