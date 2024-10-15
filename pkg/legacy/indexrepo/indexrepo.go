@@ -10,12 +10,9 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/DIMO-Network/model-garage/pkg/cloudevent"
-	"github.com/DIMO-Network/nameindexer"
-	chindexer "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
+	"github.com/DIMO-Network/nameindexer/pkg/legacy"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/volatiletech/sqlboiler/v4/drivers"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -44,8 +41,8 @@ func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 // GetLatestFileName returns the latest filename for the given subject and data type.
 func (s *Service) GetLatestFileName(ctx context.Context, opts SearchOptions) (string, error) {
 	mods := []qm.QueryMod{
-		qm.Select("argMax(" + chindexer.FileNameColumn + ", " + chindexer.TimestampColumn + ") AS filename"),
-		qm.From(chindexer.TableName),
+		qm.Select("argMax(" + legacy.FileNameColumn + ", " + legacy.TimestampColumn + ") AS filename"),
+		qm.From(legacy.TableName),
 	}
 	optsMods, err := opts.QueryMods()
 	if err != nil {
@@ -70,9 +67,9 @@ func (s *Service) GetFileNames(ctx context.Context, limit int, opts SearchOption
 		order = " ASC"
 	}
 	mods := []qm.QueryMod{
-		qm.Select(chindexer.FileNameColumn),
-		qm.From(chindexer.TableName),
-		qm.OrderBy(chindexer.TimestampColumn + order),
+		qm.Select(legacy.FileNameColumn),
+		qm.From(legacy.TableName),
+		qm.OrderBy(legacy.TimestampColumn + order),
 		qm.Limit(limit),
 	}
 
@@ -166,8 +163,8 @@ func (s *Service) GetDataFromFile(ctx context.Context, filename, bucketName stri
 }
 
 // StoreFile stores the given data in S3 with the given index.
-func (s *Service) StoreFile(ctx context.Context, index *nameindexer.Index, bucketName string, data []byte) error {
-	fileName, err := nameindexer.EncodeIndex(index)
+func (s *Service) StoreFile(ctx context.Context, index *legacy.Index, bucketName string, data []byte) error {
+	fileName, err := legacy.EncodeIndex(index)
 	if err != nil {
 		return fmt.Errorf("failed to encode index: %w", err)
 	}
@@ -181,12 +178,12 @@ func (s *Service) StoreFile(ctx context.Context, index *nameindexer.Index, bucke
 		return fmt.Errorf("failed to store object in S3: %w", err)
 	}
 
-	values, err := chindexer.IndexToSlice(index)
+	values, err := legacy.IndexToSlice(index)
 	if err != nil {
 		return fmt.Errorf("failed to convert index to slice: %w", err)
 	}
 
-	err = s.chConn.Exec(ctx, chindexer.InsertStmt, values...)
+	err = s.chConn.Exec(ctx, legacy.InsertStmt, values...)
 	if err != nil {
 		return fmt.Errorf("failed to store index in ClickHouse: %w", err)
 	}
@@ -207,50 +204,34 @@ type SearchOptions struct {
 	// DataType if set only files for this data type are returned.
 	DataType *string
 	// Subject if set only files for this subject are returned.
-	Subject *cloudevent.NFTDID
+	Subject *legacy.Subject
 	// SecondaryFiller if set only files for this secondary filler are returned.
 	SecondaryFiller *string
-	// Source is the party responsible for creating the data.
-	Source *common.Address
-	// Producer is the specific source entity that created the data.
-	Producer *cloudevent.NFTDID
 }
 
 func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
 	var mods []qm.QueryMod
 	if !o.After.IsZero() {
-		mods = append(mods, qm.Where(chindexer.TimestampColumn+" > ?", o.After))
+		mods = append(mods, qm.Where(legacy.TimestampColumn+" > ?", o.After))
 	}
 	if !o.Before.IsZero() {
-		mods = append(mods, qm.Where(chindexer.TimestampColumn+" < ?", o.Before))
+		mods = append(mods, qm.Where(legacy.TimestampColumn+" < ?", o.Before))
 	}
 	if o.PrimaryFiller != nil {
-		mods = append(mods, qm.Where(chindexer.PrimaryFillerColumn+" = ?", *o.PrimaryFiller))
+		mods = append(mods, qm.Where(legacy.PrimaryFillerColumn+" = ?", *o.PrimaryFiller))
 	}
 	if o.DataType != nil {
-		paddedDataType := nameindexer.EncodeDataType(*o.DataType)
-		mods = append(mods, qm.Where(chindexer.DataTypeColumn+" = ?", paddedDataType))
+		paddedDataType, err := legacy.SantatizeDataType(*o.DataType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to sanitize data type: %w", err)
+		}
+		mods = append(mods, qm.Where(legacy.DataTypeColumn+" = ?", paddedDataType))
 	}
 	if o.Subject != nil {
-		subject, err := nameindexer.EncodeNFTDID(*o.Subject)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode subject: %w", err)
-		}
-		mods = append(mods, qm.Where(chindexer.SubjectColumn+" = ?", subject))
+		mods = append(mods, qm.Where(legacy.SubjectColumn+" = ?", *o.Subject))
 	}
 	if o.SecondaryFiller != nil {
-		mods = append(mods, qm.Where(chindexer.SecondaryFillerColumn+" = ?", *o.SecondaryFiller))
-	}
-	if o.Source != nil {
-		source := nameindexer.EncodeAddress(*o.Source)
-		mods = append(mods, qm.Where(chindexer.SourceColumn+" = ?", source))
-	}
-	if o.Producer != nil {
-		producer, err := nameindexer.EncodeNFTDID(*o.Producer)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode producer: %w", err)
-		}
-		mods = append(mods, qm.Where(chindexer.ProducerColumn+" = ?", producer))
+		mods = append(mods, qm.Where(legacy.SecondaryFillerColumn+" = ?", *o.SecondaryFiller))
 	}
 	return mods, nil
 }

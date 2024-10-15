@@ -36,7 +36,14 @@ func upUpdateIndex(ctx context.Context, tx *sql.Tx) error {
 
 func downUpdateIndex(ctx context.Context, tx *sql.Tx) error {
 	// This code is executed when the migration is rolled back.
-	downStatements := []string{}
+	downStatements := []string{
+		`CREATE TABLE IF NOT EXISTS name_index_tmp AS name_index ENGINE = MergeTree()
+			ORDER BY file_name
+		`,
+		`INSERT INTO name_index_tmp SELECT * FROM name_index`,
+		`DROP TABLE IF EXISTS name_index`,
+		`RENAME TABLE name_index_tmp TO name_index`,
+	}
 	for _, downStatement := range downStatements {
 		_, err := tx.ExecContext(ctx, downStatement)
 		if err != nil {
