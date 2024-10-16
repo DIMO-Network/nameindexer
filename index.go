@@ -6,9 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/DIMO-Network/model-garage/pkg/cloudevent"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -52,21 +49,34 @@ func (e InvalidError) Error() string {
 // Index represents the components of a decoded index.
 type Index struct {
 	// Subject is the subject of the data represented by the index.
-	Subject cloudevent.NFTDID `json:"subject"`
+	Subject string
 	// Timestamp is the full timestamp used for date and time.
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp time.Time
 	// PrimaryFiller is the filler value between the date and data type, typically "MM". If empty, defaults to "MM".
-	PrimaryFiller string `json:"primaryFiller"`
-	// DataType is the type of data, left-padded with zeros or truncated to 10 characters.
-	DataType string `json:"dataType"`
+	PrimaryFiller string
+	// DataType is the type of data, left-padded with @ or truncated to 20 characters.
+	DataType string
 	// Source is the source of the data represented by the index.
-	Source common.Address `json:"source"`
+	Source string `json:"source"`
 	// Producer is the producer of the data represented by the index.
-	Producer cloudevent.NFTDID `json:"producer"`
+	Producer string `json:"producer"`
 	// SecondaryFiller is the filler value between the subject and time, typically "00". If empty, defaults to "00".
-	SecondaryFiller string `json:"secondaryFiller"`
+	SecondaryFiller string
 	// Optional data for additional metadata
 	Optional string `json:"optional"`
+}
+
+func (i Index) WithEncodedParts() Index {
+	return Index{
+		Subject:         EncodeSubject(i.Subject),
+		Timestamp:       i.Timestamp,
+		PrimaryFiller:   EncodePrimaryFiller(i.PrimaryFiller),
+		DataType:        EncodeDataType(i.DataType),
+		Source:          EncodeSource(i.Source),
+		Producer:        EncodeProducer(i.Producer),
+		SecondaryFiller: EncodeSecondaryFiller(i.SecondaryFiller),
+		Optional:        i.Optional,
+	}
 }
 
 // EncodeIndex creates an indexable name string from the Index struct.
@@ -94,42 +104,27 @@ type Index struct {
 //     -- tokenID is an 8-character hexadecimal string representing the uint32 token ID
 //   - optional is an optional string that can be appended to the index
 func EncodeIndex(origIndex *Index) (string, error) {
-	index := WithDefaults(origIndex)
-
-	err := ValidateIndex(index)
-	if err != nil {
-		return "", err
+	if origIndex == nil {
+		return "", InvalidError("index is nil")
 	}
-
-	yymmddInt := (index.Timestamp.Year()%100)*10000 + int(index.Timestamp.Month())*100 + index.Timestamp.Day()
-	datePart := DateMax - yymmddInt
-
-	// Format time part
-	timePart := index.Timestamp.UTC().Format(HhmmssFormat)
-	subject, err := EncodeNFTDID(index.Subject)
+	index := origIndex.WithEncodedParts()
+	datePart, err := EncodeDate(index.Timestamp)
 	if err != nil {
-		return "", fmt.Errorf("subject: %w", err)
+		return "", fmt.Errorf("date part: %w", err)
 	}
-	producer, err := EncodeNFTDID(index.Producer)
-	if err != nil {
-		return "", fmt.Errorf("producer: %w", err)
-	}
+	timePart := EncodeTime(index.Timestamp)
 
-	unPrefixedSource := EncodeAddress(index.Source)
-	dataType := EncodeDataType(index.DataType)
 	// Construct the index string
-	encodedIndex := fmt.Sprintf(
-		"%s%06d%s%s%s%s%s%s%s",
-		subject,
-		datePart,
-		timePart,
-		index.PrimaryFiller,
-		unPrefixedSource,
-		dataType,
-		index.SecondaryFiller,
-		producer,
-		index.Optional,
-	)
+	encodedIndex :=
+		index.Subject +
+			datePart +
+			timePart +
+			index.PrimaryFiller +
+			index.Source +
+			index.DataType +
+			index.SecondaryFiller +
+			index.Producer +
+			index.Optional
 
 	return encodedIndex, nil
 }
@@ -176,53 +171,19 @@ func DecodeIndex(index string) (*Index, error) {
 	// put the rest of the index into optional
 	optional := index[start:]
 
-	// Decode date
-	dateInt, err := strconv.Atoi(datePart)
+	fullTime, err := DecodeDateAndTime(datePart, timePart)
 	if err != nil {
-		return nil, fmt.Errorf("date part: %w", err)
-	}
-	yymmddInt := DateMax - dateInt
-
-	year := (yymmddInt / 10000) + 2000
-	month := (yymmddInt % 10000) / 100
-	day := yymmddInt % 100
-
-	if month < 1 || month > 12 {
-		return nil, InvalidError("month out of range")
-	}
-	if day < 1 || day > 31 {
-		return nil, InvalidError("day out of range")
-	}
-
-	subject, err := DecodeNFTDIDIndex(subjectPart)
-	if err != nil {
-		return nil, fmt.Errorf("subject part: %w", err)
-	}
-
-	// Decode time
-	ts, err := time.Parse(HhmmssFormat, timePart)
-	if err != nil {
-		return nil, fmt.Errorf("time part: %w", err)
-	}
-	fullTime := time.Date(year, time.Month(month), day, ts.Hour(), ts.Minute(), ts.Second(), 0, time.UTC)
-
-	if !common.IsHexAddress(sourcePart) {
-		return nil, InvalidError("source is not a valid address")
-	}
-
-	producer, err := DecodeNFTDIDIndex(producerPart)
-	if err != nil {
-		return nil, fmt.Errorf("producer part: %w", err)
+		return nil, err
 	}
 
 	decodedIndex := &Index{
-		Subject:         subject,
+		Subject:         DecodeSubject(subjectPart),
 		Timestamp:       fullTime,
-		PrimaryFiller:   primaryFillerPart,
-		Source:          common.HexToAddress(sourcePart),
+		PrimaryFiller:   DecodePrimaryFiller(primaryFillerPart),
+		Source:          DecodeSource(sourcePart),
 		DataType:        DecodeDataType(dataTypePart),
-		Producer:        producer,
-		SecondaryFiller: secondaryFillerPart,
+		Producer:        DecodeProducer(producerPart),
+		SecondaryFiller: DecodeSecondaryFiller(secondaryFillerPart),
 		Optional:        optional,
 	}
 
@@ -234,46 +195,6 @@ func getNextPart(encodedIndex string, start, offset int) (string, int) {
 	value := encodedIndex[start:end]
 	nextStart := end
 	return value, nextStart
-}
-
-// ValidateIndex validates the index.
-func ValidateIndex(index *Index) error {
-	if index == nil {
-		return InvalidError("nil index")
-	}
-
-	// Validate primary filler length
-	if len(index.PrimaryFiller) != FillerLength {
-		return InvalidError("primary filler length")
-	}
-	// Validate secondary filler length
-	if len(index.SecondaryFiller) != FillerLength {
-		return InvalidError("secondary filler length")
-	}
-
-	// Format date part
-	if index.Timestamp.IsZero() || index.Timestamp.Year() < 2000 || index.Timestamp.Year() > 2099 {
-		return InvalidError("timestamp year must be between 2000 and 2099")
-	}
-
-	return nil
-}
-
-// WithDefaults sets default values for the index and santizes the data type.
-func WithDefaults(index *Index) *Index {
-	if index == nil {
-		return nil
-	}
-
-	retIndex := *index
-
-	if retIndex.PrimaryFiller == "" {
-		retIndex.PrimaryFiller = DefaultPrimaryFiller
-	}
-	if retIndex.SecondaryFiller == "" {
-		retIndex.SecondaryFiller = DefaultSecondaryFiller
-	}
-	return &retIndex
 }
 
 // EncodeDataType pads the data type with `*` if shorter than required.
@@ -291,53 +212,150 @@ func EncodeDataType(dataType string) string {
 	return dataType
 }
 
-// EncodeAddress encodes an ethereum address without the 0x prefix.
-func EncodeAddress(address common.Address) string {
-	return address.Hex()[2:]
-}
-
 // DecodeDataType decodes a data type string by removing padding.
 func DecodeDataType(dataType string) string {
 	return strings.TrimLeft(dataType, DataTypePadding)
 }
 
-// EncodeNFTDID encodes an NFTDID struct into an indexable string.
-// This format is different from the standard NFTDID.
-func EncodeNFTDID(did cloudevent.NFTDID) (string, error) {
-	if !common.IsHexAddress(did.ContractAddress.Hex()) {
-		return "", InvalidError("contract address is not a valid address")
+// EncodePrimaryFiller pads the primary filler with `M` if shorter than required.
+// It truncates the primary filler if longer than required.
+func EncodePrimaryFiller(primaryFiller string) string {
+	// Validate primary filler length
+	if len(primaryFiller) > FillerLength {
+		// truncate primary filler if longer than required
+		return primaryFiller[:FillerLength]
 	}
-	unPrefixedAddr := EncodeAddress(did.ContractAddress)
-	return fmt.Sprintf("%016x%s%08x", did.ChainID, unPrefixedAddr, did.TokenID), nil
+	// Pad primary filler with zeros if shorter than required
+	if len(primaryFiller) < FillerLength {
+		return fmt.Sprintf("%s%s", strings.Repeat("M", FillerLength-len(primaryFiller)), primaryFiller)
+	}
+	return primaryFiller
 }
 
-// DecodeNFTDIDIndex decodes an NFTDID string into a cloudevent.NFTDID struct.
-func DecodeNFTDIDIndex(indexNFTDID string) (cloudevent.NFTDID, error) {
-	if len(indexNFTDID) != DIDLength {
-		return cloudevent.NFTDID{}, InvalidError("invalid NFTDID length")
+// DecodePrimaryFiller decodes a primary filler string by removing padding.
+func DecodePrimaryFiller(primaryFiller string) string {
+	return strings.TrimLeft(primaryFiller, "M")
+}
+
+// EncodeSecondaryFiller pads the secondary filler with `0` if shorter than required.
+// It truncates the secondary filler if longer than required.
+func EncodeSecondaryFiller(secondaryFiller string) string {
+	// Validate secondary filler length
+	if len(secondaryFiller) > FillerLength {
+		// truncate secondary filler if longer than required
+		return secondaryFiller[:FillerLength]
 	}
-	var start int
-	chainIDPart, start := getNextPart(indexNFTDID, start, 16)
-	chainID, err := strconv.ParseUint(chainIDPart, 16, 64)
+	// Pad secondary filler with zeros if shorter than required
+	if len(secondaryFiller) < FillerLength {
+		return fmt.Sprintf("%s%s", strings.Repeat("0", FillerLength-len(secondaryFiller)), secondaryFiller)
+	}
+	return secondaryFiller
+}
+
+// DecodeSecondaryFiller decodes a secondary filler string by removing padding.
+func DecodeSecondaryFiller(secondaryFiller string) string {
+	return strings.TrimLeft(secondaryFiller, "0")
+}
+
+// EncodeSource pads the source with `!` if shorter than required.
+// It truncates the source if longer than required.
+func EncodeSource(source string) string {
+	// Validate source length
+	if len(source) > AddressLength {
+		// truncate source if longer than required
+		return source[:AddressLength]
+	}
+	// Pad source with zeros if shorter than required
+	if len(source) < AddressLength {
+		return fmt.Sprintf("%s%s", strings.Repeat(DataTypePadding, AddressLength-len(source)), source)
+	}
+	return source
+}
+
+// DecodeSource decodes a source string by removing padding
+func DecodeSource(source string) string {
+	return strings.TrimLeft(source, DataTypePadding)
+}
+
+// EncodeSubject pads the subject with `!` if shorter than required.
+// It truncates the subject if longer than required.
+func EncodeSubject(subject string) string {
+	// Validate subject length
+	if len(subject) > DIDLength {
+		// truncate subject if longer than required
+		return subject[:DIDLength]
+	}
+	// Pad subject with zeros if shorter than required
+	if len(subject) < DIDLength {
+		return fmt.Sprintf("%s%s", strings.Repeat(DataTypePadding, DIDLength-len(subject)), subject)
+	}
+	return subject
+}
+
+// DecodeSubject decodes a subject string by removing padding.
+func DecodeSubject(subject string) string {
+	return strings.TrimLeft(subject, DataTypePadding)
+}
+
+// EncodeProducer pads the producer with `!` if shorter than required.
+// It truncates the producer if longer than required.
+func EncodeProducer(producer string) string {
+	// Validate producer length
+	if len(producer) > DIDLength {
+		// truncate producer if longer than required
+		return producer[:DIDLength]
+	}
+	// Pad producer with zeros if shorter than required
+	if len(producer) < DIDLength {
+		return fmt.Sprintf("%s%s", strings.Repeat(DataTypePadding, DIDLength-len(producer)), producer)
+	}
+	return producer
+}
+
+// DecodeProducer decodes a producer string by removing padding.
+func DecodeProducer(producer string) string {
+	return strings.TrimLeft(producer, DataTypePadding)
+}
+
+// EncodeDate encodes a time.Time into a string.
+func EncodeDate(date time.Time) (string, error) {
+	if date.IsZero() || date.Year() < 2000 || date.Year() > 2099 {
+		return "", InvalidError("timestamp year must be between 2000 and 2099")
+	}
+	yymmddInt := (date.Year()%100)*10000 + int(date.Month())*100 + date.Day()
+	datePart := DateMax - yymmddInt
+	return fmt.Sprintf("%06d", datePart), nil
+}
+
+// EncodeTime encodes a time.Time into a string.
+func EncodeTime(ts time.Time) string {
+	return ts.UTC().Format(HhmmssFormat)
+}
+
+func DecodeDateAndTime(datePart string, timePart string) (time.Time, error) {
+	// Decode date
+	dateInt, err := strconv.Atoi(datePart)
 	if err != nil {
-		return cloudevent.NFTDID{}, fmt.Errorf("chain ID: %w", err)
+		return time.Time{}, fmt.Errorf("date part: %w", err)
+	}
+	yymmddInt := DateMax - dateInt
+
+	year := (yymmddInt / 10000) + 2000
+	month := (yymmddInt % 10000) / 100
+	day := yymmddInt % 100
+
+	if month < 1 || month > 12 {
+		return time.Time{}, InvalidError("month out of range")
+	}
+	if day < 1 || day > 31 {
+		return time.Time{}, InvalidError("day out of range")
 	}
 
-	contractPart, start := getNextPart(indexNFTDID, start, AddressLength)
-	if !common.IsHexAddress(contractPart) {
-		return cloudevent.NFTDID{}, InvalidError("contract address is not a valid address")
-	}
-	contractAddress := common.HexToAddress(contractPart)
-
-	tokenIDPart, _ := getNextPart(indexNFTDID, start, 8)
-	tokenID, err := strconv.ParseUint(tokenIDPart, 16, 32)
+	// Decode time
+	ts, err := time.Parse(HhmmssFormat, timePart)
 	if err != nil {
-		return cloudevent.NFTDID{}, fmt.Errorf("token ID: %w", err)
+		return time.Time{}, fmt.Errorf("time part: %w", err)
 	}
-
-	return cloudevent.NFTDID{
-		ChainID:         chainID,
-		ContractAddress: contractAddress,
-		TokenID:         uint32(tokenID),
-	}, nil
+	fullTime := time.Date(year, time.Month(month), day, ts.Hour(), ts.Minute(), ts.Second(), 0, time.UTC)
+	return fullTime, nil
 }

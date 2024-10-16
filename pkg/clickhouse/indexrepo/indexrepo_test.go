@@ -52,13 +52,13 @@ func setupClickHouseContainer(t *testing.T) *container.Container {
 }
 
 // insertTestData inserts test data into ClickHouse.
-func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, index *nameindexer.Index) string {
-	values, err := chindexer.IndexToSlice(index)
+func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, index *nameindexer.CloudEventIndex) string {
+	values, err := chindexer.CloudEventIndexToSlice(index)
 	require.NoError(t, err)
 
 	err = conn.Exec(ctx, chindexer.InsertStmt, values...)
 	require.NoError(t, err)
-	filename, err := nameindexer.EncodeIndex(index)
+	filename, err := nameindexer.EncodeCloudEventIndex(index)
 	require.NoError(t, err)
 	return filename
 }
@@ -113,7 +113,7 @@ func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, ind
 
 // 	for _, tt := range tests {
 // 		t.Run(tt.name, func(t *testing.T) {
-// 			opts := indexrepo.SearchOptions{
+// 			opts := indexrepo.CloudEventSearchOptions{
 // 				DataType: &dataType,
 // 				Subject:  &tt.subject,
 // 			}
@@ -170,7 +170,7 @@ func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, ind
 
 // 	for _, tt := range tests {
 // 		t.Run(tt.name, func(t *testing.T) {
-// 			opts := indexrepo.SearchOptions{
+// 			opts := indexrepo.CloudEventSearchOptions{
 // 				DataType: &dataType,
 // 				Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(tt.deviceAddr)},
 // 			}
@@ -200,7 +200,7 @@ func TestStoreFile(t *testing.T) {
 	indexFileService := indexrepo.New(conn, mockS3Client)
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
-	index := nameindexer.Index{
+	index := nameindexer.CloudEventIndex{
 		Subject: cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: randAddress(),
@@ -210,17 +210,17 @@ func TestStoreFile(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	err = indexFileService.StoreFile(ctx, &index, "test-bucket", content)
+	err = indexFileService.StoreCloudEventFile(ctx, &index, "test-bucket", content)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
-	opts := indexrepo.SearchOptions{
+	opts := indexrepo.CloudEventSearchOptions{
 		DataType: &dataType,
 		Subject:  &index.Subject,
 	}
-	filename, err := indexFileService.GetLatestFileName(ctx, opts)
+	filename, err := indexFileService.GetLatestCloudEventFileName(ctx, opts)
 	require.NoError(t, err)
-	expectedFileName, err := nameindexer.EncodeIndex(&index)
+	expectedFileName, err := nameindexer.EncodeCloudEventIndex(&index)
 	require.NoError(t, err)
 	require.Equal(t, expectedFileName, filename)
 }
@@ -239,7 +239,7 @@ func TestGetData(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	eventIdx := nameindexer.Index{
+	eventIdx := nameindexer.CloudEventIndex{
 		Subject: cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
@@ -276,13 +276,13 @@ func TestGetData(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		opts          indexrepo.SearchOptions
+		opts          indexrepo.CloudEventSearchOptions
 		expectedFiles []string
 		expectedError bool
 	}{
 		{
 			name: "valid data with address",
-			opts: indexrepo.SearchOptions{
+			opts: indexrepo.CloudEventSearchOptions{
 				DataType: &dataType,
 				Subject:  &eventIdx.Subject,
 			},
@@ -290,7 +290,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "no records with address",
-			opts: indexrepo.SearchOptions{
+			opts: indexrepo.CloudEventSearchOptions{
 				DataType: &dataType,
 				Subject: &cloudevent.NFTDID{
 					ChainID:         153,
@@ -302,7 +302,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "data within time range",
-			opts: indexrepo.SearchOptions{
+			opts: indexrepo.CloudEventSearchOptions{
 				DataType: &dataType,
 				After:    now.Add(-3 * time.Hour),
 				Before:   now.Add(-1 * time.Minute),
@@ -311,7 +311,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "data with primary filler",
-			opts: indexrepo.SearchOptions{
+			opts: indexrepo.CloudEventSearchOptions{
 				DataType:      &dataType,
 				PrimaryFiller: ref("0S"),
 			},
@@ -319,7 +319,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "data with secondary filler",
-			opts: indexrepo.SearchOptions{
+			opts: indexrepo.CloudEventSearchOptions{
 				DataType:        &dataType,
 				SecondaryFiller: ref("00"),
 			},
@@ -345,7 +345,7 @@ func TestGetData(t *testing.T) {
 					}, nil
 				})
 			}
-			data, err := indexFileService.GetData(context.Background(), "test-bucket", 10, tt.opts)
+			data, err := indexFileService.GetCloudEventData(context.Background(), "test-bucket", 10, tt.opts)
 
 			if tt.expectedError {
 				require.Error(t, err)

@@ -41,6 +41,15 @@ func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 	}
 }
 
+// GetLatestCloudEvenFileName returns the latest filename for the given subject and data type.
+func (s *Service) GetLatestCloudEventFileName(ctx context.Context, opts CloudEventSearchOptions) (string, error) {
+	searchOpts, err := opts.ToSearchOptions()
+	if err != nil {
+		return "", fmt.Errorf("failed to convert cloud event search options: %w", err)
+	}
+	return s.GetLatestFileName(ctx, searchOpts)
+}
+
 // GetLatestFileName returns the latest filename for the given subject and data type.
 func (s *Service) GetLatestFileName(ctx context.Context, opts SearchOptions) (string, error) {
 	mods := []qm.QueryMod{
@@ -64,6 +73,16 @@ func (s *Service) GetLatestFileName(ctx context.Context, opts SearchOptions) (st
 	return filename, nil
 }
 
+// GetCloudEventFileNames fetches and returns the filenames for the given options.
+func (s *Service) GetCloudEventFileNames(ctx context.Context, limit int, opts CloudEventSearchOptions) ([]string, error) {
+	searchOpts, err := opts.ToSearchOptions()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
+	}
+	return s.GetFileNames(ctx, limit, searchOpts)
+}
+
+// GetFileNames fetches and returns the filenames for the given options.
 func (s *Service) GetFileNames(ctx context.Context, limit int, opts SearchOptions) ([]string, error) {
 	order := " DESC"
 	if opts.TimestampAsc {
@@ -117,6 +136,15 @@ func (s *Service) GetDataFromFileNames(ctx context.Context, filenames []string, 
 	return data, nil
 }
 
+// GetCloudEventData fetches and returns the data for the given subject.
+func (s *Service) GetCloudEventData(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([][]byte, error) {
+	searchOpts, err := opts.ToSearchOptions()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
+	}
+	return s.GetData(ctx, bucketName, limit, searchOpts)
+}
+
 // GetData fetches and returns the data for the given subject.
 func (s *Service) GetData(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([][]byte, error) {
 	filenames, err := s.GetFileNames(ctx, limit, opts)
@@ -130,6 +158,15 @@ func (s *Service) GetData(ctx context.Context, bucketName string, limit int, opt
 	}
 
 	return data, nil
+}
+
+// GetLatestCloudEventData fetches and returns the latest data for the given subject.
+func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string, opts CloudEventSearchOptions) ([]byte, error) {
+	searchOpts, err := opts.ToSearchOptions()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
+	}
+	return s.GetLatestData(ctx, bucketName, searchOpts)
 }
 
 // GetLatestData fetches and returns the latest data for the given subject.
@@ -163,6 +200,15 @@ func (s *Service) GetDataFromFile(ctx context.Context, filename, bucketName stri
 		return nil, fmt.Errorf("failed to read object body: %w", err)
 	}
 	return data, nil
+}
+
+// StoreCloudEventFile stores the given data in S3 with the given index.
+func (s *Service) StoreCloudEventFile(ctx context.Context, cloudIndex *nameindexer.CloudEventIndex, bucketName string, data []byte) error {
+	index, err := cloudIndex.ToIndex()
+	if err != nil {
+		return fmt.Errorf("failed to convert cloud event index to index: %w", err)
+	}
+	return s.StoreFile(ctx, &index, bucketName, data)
 }
 
 // StoreFile stores the given data in S3 with the given index.
@@ -207,6 +253,30 @@ type SearchOptions struct {
 	// DataType if set only files for this data type are returned.
 	DataType *string
 	// Subject if set only files for this subject are returned.
+	Subject *string
+	// SecondaryFiller if set only files for this secondary filler are returned.
+	SecondaryFiller *string
+	// Source is the party responsible for creating the data.
+	Source *string
+	// Producer is the specific source entity that created the data.
+	Producer *string
+	// Optional is the optional data for additional metadata.
+	Optional *string
+}
+
+type CloudEventSearchOptions struct {
+	// After if set only files after this time are returned.
+	After time.Time
+	// Before if set only files before this time are returned.
+	Before time.Time
+	// TimestampAsc if set files are queried and returned in ascending order by timestamp.
+	// This option is not applied for the latest file query.
+	TimestampAsc bool
+	// PrimaryFiller if set only files for this primary filler are returned.
+	PrimaryFiller *string
+	// DataType if set only files for this data type are returned.
+	DataType *string
+	// Subject if set only files for this subject are returned.
 	Subject *cloudevent.NFTDID
 	// SecondaryFiller if set only files for this secondary filler are returned.
 	SecondaryFiller *string
@@ -214,6 +284,39 @@ type SearchOptions struct {
 	Source *common.Address
 	// Producer is the specific source entity that created the data.
 	Producer *cloudevent.NFTDID
+	// Optional is the optional data for additional metadata.
+	Optional *string
+}
+
+func (c *CloudEventSearchOptions) ToSearchOptions() (SearchOptions, error) {
+	opts := SearchOptions{
+		After:           c.After,
+		Before:          c.Before,
+		TimestampAsc:    c.TimestampAsc,
+		PrimaryFiller:   c.PrimaryFiller,
+		DataType:        c.DataType,
+		SecondaryFiller: c.SecondaryFiller,
+		Optional:        c.Optional,
+	}
+	if c.Subject != nil {
+		subject, err := nameindexer.EncodeNFTDID(*c.Subject)
+		if err != nil {
+			return SearchOptions{}, fmt.Errorf("failed to convert subject to string: %w", err)
+		}
+		opts.Subject = &subject
+	}
+	if c.Source != nil {
+		source := nameindexer.EncodeAddress(*c.Source)
+		opts.Source = &source
+	}
+	if c.Producer != nil {
+		producer, err := nameindexer.EncodeNFTDID(*c.Producer)
+		if err != nil {
+			return SearchOptions{}, fmt.Errorf("failed to convert producer to string: %w", err)
+		}
+		opts.Producer = &producer
+	}
+	return opts, nil
 }
 
 func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
@@ -225,32 +328,31 @@ func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
 		mods = append(mods, qm.Where(chindexer.TimestampColumn+" < ?", o.Before))
 	}
 	if o.PrimaryFiller != nil {
-		mods = append(mods, qm.Where(chindexer.PrimaryFillerColumn+" = ?", *o.PrimaryFiller))
+		primaryFiller := nameindexer.EncodePrimaryFiller(*o.PrimaryFiller)
+		mods = append(mods, qm.Where(chindexer.PrimaryFillerColumn+" = ?", primaryFiller))
 	}
 	if o.DataType != nil {
 		paddedDataType := nameindexer.EncodeDataType(*o.DataType)
 		mods = append(mods, qm.Where(chindexer.DataTypeColumn+" = ?", paddedDataType))
 	}
 	if o.Subject != nil {
-		subject, err := nameindexer.EncodeNFTDID(*o.Subject)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode subject: %w", err)
-		}
+		subject := nameindexer.EncodeSubject(*o.Subject)
 		mods = append(mods, qm.Where(chindexer.SubjectColumn+" = ?", subject))
 	}
 	if o.SecondaryFiller != nil {
-		mods = append(mods, qm.Where(chindexer.SecondaryFillerColumn+" = ?", *o.SecondaryFiller))
+		secondaryFiller := nameindexer.EncodeSecondaryFiller(*o.SecondaryFiller)
+		mods = append(mods, qm.Where(chindexer.SecondaryFillerColumn+" = ?", secondaryFiller))
 	}
 	if o.Source != nil {
-		source := nameindexer.EncodeAddress(*o.Source)
+		source := nameindexer.EncodeSource(*o.Source)
 		mods = append(mods, qm.Where(chindexer.SourceColumn+" = ?", source))
 	}
 	if o.Producer != nil {
-		producer, err := nameindexer.EncodeNFTDID(*o.Producer)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode producer: %w", err)
-		}
+		producer := nameindexer.EncodeProducer(*o.Producer)
 		mods = append(mods, qm.Where(chindexer.ProducerColumn+" = ?", producer))
+	}
+	if o.Optional != nil {
+		mods = append(mods, qm.Where(chindexer.OptionalColumn+" = ?", *o.Optional))
 	}
 	return mods, nil
 }

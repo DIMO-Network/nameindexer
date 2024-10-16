@@ -14,7 +14,6 @@ import (
 	"github.com/DIMO-Network/nameindexer"
 	localch "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
 	"github.com/DIMO-Network/nameindexer/pkg/clickhouse/migrations"
-	"github.com/DIMO-Network/nameindexer/pkg/legacy"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,11 +35,11 @@ func TestMigration(t *testing.T) {
 	conn, err := chcontainer.GetClickHouseAsConn()
 	require.NoError(t, err, "Failed to get clickhouse connection")
 
-	oldIdx := &legacy.Index{
+	oldIdx := &nameindexer.Index{
 		Timestamp:       time.Now(),
 		PrimaryFiller:   "0S",
 		DataType:        "Stat/2.0.0",
-		Subject:         legacy.Subject{Identifier: legacy.TokenID(3)},
+		Subject:         "T000000000000000000000000000000000000003",
 		SecondaryFiller: "00",
 	}
 	err = insesrtOldIndex(conn, oldIdx)
@@ -48,7 +47,7 @@ func TestMigration(t *testing.T) {
 
 	err = migrations.RunGoose(ctx, []string{"up", "-v"}, db)
 	require.NoError(t, err, "Failed to run migration")
-	newIdx := nameindexer.Index{
+	newIdx := nameindexer.CloudEventIndex{
 		Subject:         cloudevent.NFTDID{ChainID: 2, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3},
 		Timestamp:       time.Now(),
 		PrimaryFiller:   "0S",
@@ -90,9 +89,9 @@ func getOrderByCols(ctx context.Context, conn clickhouse.Conn, tableName string)
 	}
 	return strings.Split(sortingKey, ", "), nil
 }
-func insesrtOldIndex(conn clickhouse.Conn, index *legacy.Index) error {
+func insesrtOldIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
 	oldInsertStmt := "INSERT INTO " + localch.TableName + " (" + localch.TimestampColumn + ", " + localch.PrimaryFillerColumn + ", " + localch.DataTypeColumn + ", " + localch.SubjectColumn + ", " + localch.SecondaryFillerColumn + ", " + localch.FileNameColumn + ") VALUES (?, ?, ?, ?, ?, ?)"
-	fileName, err := legacy.EncodeIndex(index)
+	fileName, err := nameindexer.EncodeIndex(index)
 	if err != nil {
 		return fmt.Errorf("failed to encode index: %w", err)
 	}
@@ -103,8 +102,8 @@ func insesrtOldIndex(conn clickhouse.Conn, index *legacy.Index) error {
 	return nil
 }
 
-func insertIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
-	values, err := localch.IndexToSlice(index)
+func insertIndex(conn clickhouse.Conn, index *nameindexer.CloudEventIndex) error {
+	values, err := localch.CloudEventIndexToSlice(index)
 	if err != nil {
 		return fmt.Errorf("failed to convert index to slice: %w", err)
 	}
