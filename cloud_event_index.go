@@ -55,7 +55,8 @@ func (c CloudEventIndex) ToIndex() (Index, error) {
 
 }
 
-func cloudTypeToFiller(status string) string {
+// CloudTypeToFiller converts a cloud event type to a filler string.
+func CloudTypeToFiller(status string) string {
 	switch status {
 	case "dimo.status":
 		return "A"
@@ -105,7 +106,7 @@ func CloudEventToCloudIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFi
 	index := &CloudEventIndex{
 		Subject:         subjectDID,
 		Timestamp:       cloudEvent.Time,
-		PrimaryFiller:   cloudTypeToFiller(cloudEvent.Type),
+		PrimaryFiller:   CloudTypeToFiller(cloudEvent.Type),
 		Source:          sourceAddr,
 		DataType:        cloudEvent.DataVersion,
 		Producer:        producerDID,
