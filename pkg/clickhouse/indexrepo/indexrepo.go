@@ -299,10 +299,7 @@ func (c *CloudEventSearchOptions) ToSearchOptions() (SearchOptions, error) {
 		Optional:        c.Optional,
 	}
 	if c.Subject != nil {
-		subject, err := nameindexer.EncodeNFTDID(*c.Subject)
-		if err != nil {
-			return SearchOptions{}, fmt.Errorf("failed to convert subject to string: %w", err)
-		}
+		subject := nameindexer.EncodeNFTDID(*c.Subject)
 		opts.Subject = &subject
 	}
 	if c.Source != nil {
@@ -310,10 +307,7 @@ func (c *CloudEventSearchOptions) ToSearchOptions() (SearchOptions, error) {
 		opts.Source = &source
 	}
 	if c.Producer != nil {
-		producer, err := nameindexer.EncodeNFTDID(*c.Producer)
-		if err != nil {
-			return SearchOptions{}, fmt.Errorf("failed to convert producer to string: %w", err)
-		}
+		producer := nameindexer.EncodeNFTDID(*c.Producer)
 		opts.Producer = &producer
 	}
 	return opts, nil
