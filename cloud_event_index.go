@@ -51,9 +51,9 @@ func (c CloudEventIndex) ToIndex() (Index, error) {
 // CloudTypeToFiller converts a cloud event type to a filler string.
 func CloudTypeToFiller(status string) string {
 	switch status {
-	case "dimo.status":
+	case cloudevent.TypeStatus:
 		return "A"
-	case "dimo.fingerprint":
+	case cloudevent.TypeFingerprint:
 		return "E"
 	default:
 		return "U"
@@ -64,11 +64,11 @@ func CloudTypeToFiller(status string) string {
 func FillerToCloudType(filler string) string {
 	switch filler {
 	case "A":
-		return "dimo.status"
+		return cloudevent.TypeStatus
 	case "E":
-		return "dimo.fingerprint"
+		return cloudevent.TypeFingerprint
 	default:
-		return "dimo.unknown"
+		return cloudevent.TypeUnknown
 	}
 }
 

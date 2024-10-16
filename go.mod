@@ -5,7 +5,7 @@ go 1.22.8
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.29.0
 	github.com/DIMO-Network/clickhouse-infra v0.0.3
-	github.com/DIMO-Network/model-garage v0.3.2-0.20241009124904-d59322096b3e
+	github.com/DIMO-Network/model-garage v0.3.2
 	github.com/aws/aws-sdk-go-v2 v1.32.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.3
 	github.com/ethereum/go-ethereum v1.14.11
