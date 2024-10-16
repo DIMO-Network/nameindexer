@@ -48,7 +48,7 @@ func TestMigration(t *testing.T) {
 
 	err = migrations.RunGoose(ctx, []string{"up", "-v"}, db)
 	require.NoError(t, err, "Failed to run migration")
-	newIdx := nameindexer.Index{
+	newIdx := nameindexer.CloudEventIndex{
 		Subject:         cloudevent.NFTDID{ChainID: 2, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3},
 		Timestamp:       time.Now(),
 		PrimaryFiller:   "0S",
@@ -103,8 +103,8 @@ func insesrtOldIndex(conn clickhouse.Conn, index *legacy.Index) error {
 	return nil
 }
 
-func insertIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
-	values, err := localch.IndexToSlice(index)
+func insertIndex(conn clickhouse.Conn, index *nameindexer.CloudEventIndex) error {
+	values, err := localch.CloudEventIndexToSlice(index)
 	if err != nil {
 		return fmt.Errorf("failed to convert index to slice: %w", err)
 	}

@@ -44,34 +44,32 @@ const (
 )
 
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.
-// This function will modify the index to have correctly padded values.
 // The order of the elements in the array match the order of the columns in the table.
 func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
-	index := nameindexer.WithDefaults(origIndex)
+	index := origIndex.WithEncodedParts()
 	fileName, err := nameindexer.EncodeIndex(origIndex)
 	if err != nil {
-		return nil, fmt.Errorf("encode index: %w", err)
+		return nil, fmt.Errorf("failed to encode index: %w", err)
 	}
-	source := nameindexer.EncodeAddress(index.Source)
-	subject, err := nameindexer.EncodeNFTDID(index.Subject)
-	if err != nil {
-		return nil, fmt.Errorf("encode subject: %w", err)
-	}
-	producer, err := nameindexer.EncodeNFTDID(index.Producer)
-	if err != nil {
-		return nil, fmt.Errorf("encode producer: %w", err)
-	}
-	dateType := nameindexer.EncodeDataType(index.DataType)
-
 	return []any{
-		subject,               // Vehicle or Device DID
+		index.Subject,         // Vehicle or Device DID
 		index.Timestamp,       // Timestamp
 		index.PrimaryFiller,   // DIMO event type (status, fingerprint, connectivity)
-		source,                // Source Ethereum address
-		dateType,              // DataVersion
+		index.Source,          // Source Ethereum address
+		index.DataType,        // DataVersion
 		index.SecondaryFiller, // Secondary filler
-		producer,              // Producer DID
+		index.Producer,        // Producer DID
 		index.Optional,        // Optional
 		fileName,
 	}, nil
+}
+
+// CloudEventIndexToSlice converts a CloudEventIndex to an array of any for Clickhouse insertion.
+// The order of the elements in the array match the order of the columns in the table.
+func CloudEventIndexToSlice(origIndex *nameindexer.CloudEventIndex) ([]any, error) {
+	index, err := origIndex.ToIndex()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert CloudEventIndex to Index: %w", err)
+	}
+	return IndexToSlice(&index)
 }
