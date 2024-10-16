@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -74,7 +72,7 @@ func (i Index) WithEncodedParts() Index {
 		Timestamp:       i.Timestamp,
 		PrimaryFiller:   EncodePrimaryFiller(i.PrimaryFiller),
 		DataType:        EncodeDataType(i.DataType),
-		Source:          EncodeSource(common.HexToAddress(i.Source)),
+		Source:          EncodeSource(i.Source),
 		Producer:        EncodeProducer(i.Producer),
 		SecondaryFiller: EncodeSecondaryFiller(i.SecondaryFiller),
 		Optional:        i.Optional,
@@ -261,18 +259,17 @@ func DecodeSecondaryFiller(secondaryFiller string) string {
 
 // EncodeSource pads the source with `!` if shorter than required.
 // It truncates the source if longer than required.
-func EncodeSource(source common.Address) string {
-	sourceStr := source.Hex()
+func EncodeSource(source string) string {
 	// Validate source length
-	if len(sourceStr) > AddressLength {
+	if len(source) > AddressLength {
 		// truncate source if longer than required
-		return sourceStr[:AddressLength]
+		return source[:AddressLength]
 	}
 	// Pad source with zeros if shorter than required
-	if len(sourceStr) < AddressLength {
-		return fmt.Sprintf("%s%s", strings.Repeat(DataTypePadding, AddressLength-len(sourceStr)), sourceStr)
+	if len(source) < AddressLength {
+		return fmt.Sprintf("%s%s", strings.Repeat(DataTypePadding, AddressLength-len(source)), source)
 	}
-	return sourceStr
+	return source
 }
 
 // DecodeSource decodes a source string by removing padding

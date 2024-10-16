@@ -29,6 +29,7 @@ type CloudEventIndex struct {
 	Optional string `json:"optional"`
 }
 
+// ToIndex converts a CloudEventIndex to an Index.
 func (c CloudEventIndex) ToIndex() (Index, error) {
 	subject, err := EncodeNFTDID(c.Subject)
 	if err != nil {
@@ -56,15 +57,37 @@ func (c CloudEventIndex) ToIndex() (Index, error) {
 
 func cloudTypeToFiller(status string) string {
 	switch status {
-	case "status":
+	case "dimo.status":
 		return "MA"
-	case "fingerprint":
+	case "dimo.fingerprint":
 		return "ME"
 	default:
-		return "MM"
+		return "MU"
 	}
 }
 
+// FillerToCloudType converts a filler string to a cloud event type.
+func FillerToCloudType(filler string) string {
+	switch filler {
+	case "MA":
+		return "dimo.status"
+	case "ME":
+		return "dimo.fingerprint"
+	default:
+		return "dimo.unknown"
+	}
+}
+
+// EncodeCloudEvent encodes a CloudEventHeader into a encoded indexable string.
+func EncodeCloudEvent(cloudEvent *cloudevent.CloudEventHeader, secondaryFiller string) (string, error) {
+	index, err := CloudEventToCloudIndex(cloudEvent, secondaryFiller)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert cloud event to index: %w", err)
+	}
+	return EncodeCloudEventIndex(index)
+}
+
+// CloudEventToCloudIndex converts a CloudEventHeader to a CloudEventIndex.
 func CloudEventToCloudIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFiller string) (*CloudEventIndex, error) {
 	subjectDID, err := cloudevent.DecodeNFTDID(cloudEvent.Subject)
 	if err != nil {
@@ -74,10 +97,10 @@ func CloudEventToCloudIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFi
 	if err != nil {
 		return nil, fmt.Errorf("producer is not a valid NFT DID: %w", err)
 	}
-	if !common.IsHexAddress(cloudEvent.Source) {
-		return nil, InvalidError("source is not a valid address")
+	sourceAddr, err := DecodeAddress(cloudEvent.Source)
+	if err != nil {
+		return nil, fmt.Errorf("source is not valid: %w", err)
 	}
-	sourceAddr := common.HexToAddress(cloudEvent.Source)
 
 	index := &CloudEventIndex{
 		Subject:         subjectDID,
@@ -91,36 +114,34 @@ func CloudEventToCloudIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFi
 	return index, nil
 }
 
-func EncodeCloudEvent(cloudEvent *cloudevent.CloudEventHeader, secondaryFiller string) (string, error) {
-	index, err := CloudEventToCloudIndex(cloudEvent, secondaryFiller)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert cloud event to index: %w", err)
+// EncodeCloudEventIndex encodes a CloudEventIndex into a string.
+func EncodeCloudEventIndex(cloudIndex *CloudEventIndex) (string, error) {
+	if cloudIndex == nil {
+		return "", InvalidError("index is nil")
 	}
-	return EncodeCloudEventIndex(index)
+	index, err := cloudIndex.ToIndex()
+	if err != nil {
+		return "", fmt.Errorf("failed to convert cloud event index to index: %w", err)
+	}
+	return EncodeIndex(&index)
 }
 
+// DecodeCloudEvent decodes an encoded index string into a CloudEventHeader.
 func DecodeCloudEvent(index string) (*cloudevent.CloudEventHeader, string, error) {
 	decodedIndex, err := DecodeCloudEventIndex(index)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to decode index: %w", err)
 	}
 	cloudEvent := &cloudevent.CloudEventHeader{
+		SpecVersion: "1.0",
 		Subject:     decodedIndex.Subject.String(),
 		Time:        decodedIndex.Timestamp,
-		Type:        decodedIndex.PrimaryFiller,
+		Type:        FillerToCloudType(decodedIndex.PrimaryFiller),
 		DataVersion: decodedIndex.DataType,
 		Producer:    decodedIndex.Producer.String(),
+		Source:      decodedIndex.Source.Hex(),
 	}
 	return cloudEvent, decodedIndex.SecondaryFiller, nil
-}
-
-// EncodeCloudEventIndex encodes a CloudEventIndex into a string.
-func EncodeCloudEventIndex(cloudIndex *CloudEventIndex) (string, error) {
-	index, err := cloudIndex.ToIndex()
-	if err != nil {
-		return "", fmt.Errorf("failed to convert cloud event index to index: %w", err)
-	}
-	return EncodeIndex(&index)
 }
 
 // DecodeCloudEventIndex decodes an index string into a cloudeventIndex
@@ -162,12 +183,17 @@ func EncodeAddress(address common.Address) string {
 	return address.Hex()[2:]
 }
 
+// DecodeAddress decodes an ethereum address from a string without the 0x prefix.
+func DecodeAddress(encodedAddress string) (common.Address, error) {
+	if !common.IsHexAddress(encodedAddress) {
+		return common.Address{}, InvalidError("address is not a valid hex-encoded Ethereum address.")
+	}
+	return common.HexToAddress(encodedAddress), nil
+}
+
 // EncodeNFTDID encodes an NFTDID struct into an indexable string.
 // This format is different from the standard NFTDID.
 func EncodeNFTDID(did cloudevent.NFTDID) (string, error) {
-	if !common.IsHexAddress(did.ContractAddress.Hex()) {
-		return "", InvalidError("contract address is not a valid address")
-	}
 	unPrefixedAddr := EncodeAddress(did.ContractAddress)
 	return fmt.Sprintf("%016x%s%08x", did.ChainID, unPrefixedAddr, did.TokenID), nil
 }
@@ -179,18 +205,19 @@ func DecodeNFTDIDIndex(indexNFTDID string) (cloudevent.NFTDID, error) {
 	}
 	var start int
 	chainIDPart, start := getNextPart(indexNFTDID, start, 16)
+	contractPart, start := getNextPart(indexNFTDID, start, AddressLength)
+	tokenIDPart, _ := getNextPart(indexNFTDID, start, 8)
+
 	chainID, err := strconv.ParseUint(chainIDPart, 16, 64)
 	if err != nil {
 		return cloudevent.NFTDID{}, fmt.Errorf("chain ID: %w", err)
 	}
 
-	contractPart, start := getNextPart(indexNFTDID, start, AddressLength)
-	if !common.IsHexAddress(contractPart) {
-		return cloudevent.NFTDID{}, InvalidError("contract address is not a valid address")
+	contractAddress, err := DecodeAddress(contractPart)
+	if err != nil {
+		return cloudevent.NFTDID{}, fmt.Errorf("contract address: %w", err)
 	}
-	contractAddress := common.HexToAddress(contractPart)
 
-	tokenIDPart, _ := getNextPart(indexNFTDID, start, 8)
 	tokenID, err := strconv.ParseUint(tokenIDPart, 16, 32)
 	if err != nil {
 		return cloudevent.NFTDID{}, fmt.Errorf("token ID: %w", err)

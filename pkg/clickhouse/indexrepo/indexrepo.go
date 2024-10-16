@@ -344,7 +344,7 @@ func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
 		mods = append(mods, qm.Where(chindexer.SecondaryFillerColumn+" = ?", secondaryFiller))
 	}
 	if o.Source != nil {
-		source := nameindexer.EncodeSource(common.HexToAddress(*o.Source))
+		source := nameindexer.EncodeSource(*o.Source)
 		mods = append(mods, qm.Where(chindexer.SourceColumn+" = ?", source))
 	}
 	if o.Producer != nil {
