@@ -319,12 +319,20 @@ func DecodeProducer(producer string) string {
 
 // EncodeDate encodes a time.Time into a string.
 func EncodeDate(date time.Time) (string, error) {
-	if date.IsZero() || date.Year() < 2000 || date.Year() > 2099 {
-		return "", InvalidError("timestamp year must be between 2000 and 2099")
+	if err := ValidateDate(date); err != nil {
+		return "", err
 	}
 	yymmddInt := (date.Year()%100)*10000 + int(date.Month())*100 + date.Day()
 	datePart := DateMax - yymmddInt
 	return fmt.Sprintf("%06d", datePart), nil
+}
+
+// ValidateDate validates the year of a timestamp is between 2000 and 2099.
+func ValidateDate(date time.Time) error {
+	if date.IsZero() || date.Year() < 2000 || date.Year() > 2099 {
+		return InvalidError("timestamp year must be between 2000 and 2099")
+	}
+	return nil
 }
 
 // EncodeTime encodes a time.Time into a string.

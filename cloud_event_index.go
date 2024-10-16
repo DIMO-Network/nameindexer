@@ -31,15 +31,8 @@ type CloudEventIndex struct {
 
 // ToIndex converts a CloudEventIndex to an Index.
 func (c CloudEventIndex) ToIndex() (Index, error) {
-	subject, err := EncodeNFTDID(c.Subject)
-	if err != nil {
-		return Index{}, fmt.Errorf("subject: %w", err)
-	}
-	producer, err := EncodeNFTDID(c.Producer)
-	if err != nil {
-		return Index{}, fmt.Errorf("producer: %w", err)
-	}
-
+	subject := EncodeNFTDID(c.Subject)
+	producer := EncodeNFTDID(c.Producer)
 	unPrefixedSource := EncodeAddress(c.Source)
 
 	return Index{
@@ -102,6 +95,9 @@ func CloudEventToCloudIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFi
 	if err != nil {
 		return nil, fmt.Errorf("source is not valid: %w", err)
 	}
+	if err := ValidateDate(cloudEvent.Time); err != nil {
+		return nil, err
+	}
 
 	index := &CloudEventIndex{
 		Subject:         subjectDID,
@@ -113,6 +109,44 @@ func CloudEventToCloudIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFi
 		SecondaryFiller: secondaryFiller,
 	}
 	return index, nil
+}
+
+// CloudEventToPartialIndex converts a CloudEventHeader to a partial Index.
+// This function is similar to CloudEventToCloudIndex, but it will not return an error if any parts are invalid.
+func CloudEventToPartialIndex(cloudHdr *cloudevent.CloudEventHeader, secondaryFiller string) Index {
+	if cloudHdr == nil {
+		return Index{
+			Timestamp: time.Now(),
+		}
+	}
+	timestamp := cloudHdr.Time
+	if err := ValidateDate(timestamp); err != nil {
+		timestamp = time.Now()
+	}
+	subject := cloudHdr.Subject
+	subjectDID, err := cloudevent.DecodeNFTDID(subject)
+	if err == nil {
+		subject = EncodeNFTDID(subjectDID)
+	}
+	producer := cloudHdr.Producer
+	producerDID, err := cloudevent.DecodeNFTDID(producer)
+	if err == nil {
+		producer = EncodeNFTDID(producerDID)
+	}
+	source := cloudHdr.Source
+	sourceAddr, err := DecodeAddress(source)
+	if err == nil {
+		source = EncodeAddress(sourceAddr)
+	}
+	return Index{
+		Subject:         subject,
+		Timestamp:       timestamp,
+		PrimaryFiller:   CloudTypeToFiller(cloudHdr.Type),
+		Source:          source,
+		DataType:        cloudHdr.DataVersion,
+		Producer:        producer,
+		SecondaryFiller: secondaryFiller,
+	}
 }
 
 // EncodeCloudEventIndex encodes a CloudEventIndex into a string.
@@ -194,9 +228,9 @@ func DecodeAddress(encodedAddress string) (common.Address, error) {
 
 // EncodeNFTDID encodes an NFTDID struct into an indexable string.
 // This format is different from the standard NFTDID.
-func EncodeNFTDID(did cloudevent.NFTDID) (string, error) {
+func EncodeNFTDID(did cloudevent.NFTDID) string {
 	unPrefixedAddr := EncodeAddress(did.ContractAddress)
-	return fmt.Sprintf("%016x%s%08x", did.ChainID, unPrefixedAddr, did.TokenID), nil
+	return fmt.Sprintf("%016x%s%08x", did.ChainID, unPrefixedAddr, did.TokenID)
 }
 
 // DecodeNFTDIDIndex decodes an NFTDID string into a cloudevent.NFTDID struct.
