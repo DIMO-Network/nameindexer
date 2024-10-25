@@ -37,8 +37,8 @@ const (
 		DataTypeColumn + ", " +
 		SecondaryFillerColumn + ", " +
 		ProducerColumn + ", " +
-		OptionalColumn + ", " +
-		FileNameColumn +
+		FileNameColumn + ", " +
+		OptionalColumn +
 		") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	// InsertStm = fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", TableName, TimestampColumn, PrimaryFillerColumn, DataTypeColumn, SubjectColumn, SecondaryFillerColumn, SourceColumn, FileNameColumn, ProducerColumn)
 )
@@ -59,8 +59,8 @@ func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
 		index.DataType,        // DataVersion
 		index.SecondaryFiller, // Secondary filler
 		index.Producer,        // Producer DID
-		index.Optional,        // Optional
 		fileName,
+		index.Optional, // Optional
 	}, nil
 }
 
