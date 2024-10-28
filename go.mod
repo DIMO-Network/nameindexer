@@ -5,14 +5,14 @@ go 1.22.8
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.29.0
 	github.com/DIMO-Network/clickhouse-infra v0.0.3
-	github.com/DIMO-Network/model-garage v0.3.2
+	github.com/DIMO-Network/model-garage v0.3.3
 	github.com/aws/aws-sdk-go-v2 v1.32.2
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.1
 	github.com/ethereum/go-ethereum v1.14.11
 	github.com/pressly/goose/v3 v3.22.1
 	github.com/stretchr/testify v1.9.0
 	github.com/volatiletech/sqlboiler/v4 v4.16.2
-	go.uber.org/mock v0.4.0
+	go.uber.org/mock v0.5.0
 )
 
 require (
