@@ -63,128 +63,166 @@ func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, ind
 	return filename
 }
 
-// // TestGetLatestFileName tests the GetLatestFileName function.
-// func TestGetLatestFileName(t *testing.T) {
-// 	chContainer := setupClickHouseContainer(t)
+// TestGetLatestFileName tests the GetLatestFileName function.
+func TestGetLatestFileName(t *testing.T) {
+	chContainer := setupClickHouseContainer(t)
 
-// 	// Insert test data
-// 	conn, err := chContainer.GetClickHouseAsConn()
-// 	require.NoError(t, err)
-// 	deviceAddr1 := randAddress()
-// 	deviceAddr2 := randAddress()
-// 	tokenID := uint32(1234567890)
-// 	imei := "123456789012345"
-// 	ctx := context.Background()
-// 	now := time.Now()
-// 	_ = insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-1 * time.Hour)})
-// 	file2Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now})
-// 	tokenIDFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)}, DataType: dataType, Timestamp: now})
-// 	imeiFileName := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.IMEI(imei)}, DataType: dataType, Timestamp: now})
+	// Insert test data
+	conn, err := chContainer.GetClickHouseAsConn()
+	require.NoError(t, err)
+	contractAddr := randAddress()
+	device1TokenID := uint32(1234567890)
+	device2TokenID := uint32(976543210)
+	ctx := context.Background()
+	now := time.Now()
 
-// 	tests := []struct {
-// 		name          string
-// 		subject       nameindexer.Subject
-// 		expectedFile  string
-// 		expectedError bool
-// 	}{
-// 		{
-// 			name:         "valid latest file",
-// 			subject:      nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)},
-// 			expectedFile: file2Name,
-// 		},
-// 		{
-// 			name:          "no records",
-// 			subject:       nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr2)},
-// 			expectedError: true,
-// 		},
-// 		{
-// 			name:         "valid latest file with token ID",
-// 			subject:      nameindexer.Subject{Identifier: nameindexer.TokenID(tokenID)},
-// 			expectedFile: tokenIDFileName,
-// 		},
-// 		{
-// 			name:         "valid latest file with IMEI",
-// 			subject:      nameindexer.Subject{Identifier: nameindexer.IMEI(imei)},
-// 			expectedFile: imeiFileName,
-// 		},
-// 	}
+	// Create test indices
+	eventIdx1 := &nameindexer.CloudEventIndex{
+		Subject: cloudevent.NFTDID{
+			ChainID:         153,
+			ContractAddress: contractAddr,
+			TokenID:         device1TokenID,
+		},
+		DataType:  dataType,
+		Timestamp: now.Add(-1 * time.Hour),
+	}
 
-// 	indexFileService := indexrepo.New(conn, nil)
+	eventIdx2 := &nameindexer.CloudEventIndex{
+		Subject: cloudevent.NFTDID{
+			ChainID:         153,
+			ContractAddress: contractAddr,
+			TokenID:         device1TokenID,
+		},
+		DataType:  dataType,
+		Timestamp: now,
+	}
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			opts := indexrepo.CloudEventSearchOptions{
-// 				DataType: &dataType,
-// 				Subject:  &tt.subject,
-// 			}
-// 			filename, err := indexFileService.GetLatestFileName(context.Background(), opts)
+	// Insert test data
+	_ = insertTestData(t, ctx, conn, eventIdx1)
+	file2Name := insertTestData(t, ctx, conn, eventIdx2)
 
-// 			if tt.expectedError {
-// 				require.Error(t, err)
-// 			} else {
-// 				require.NoError(t, err)
-// 				require.Equal(t, tt.expectedFile, filename)
-// 			}
-// 		})
-// 	}
-// }
+	tests := []struct {
+		name          string
+		subject       cloudevent.NFTDID
+		expectedFile  string
+		expectedError bool
+	}{
+		{
+			name: "valid latest file",
+			subject: cloudevent.NFTDID{
+				ChainID:         153,
+				ContractAddress: contractAddr,
+				TokenID:         device1TokenID,
+			},
+			expectedFile: file2Name,
+		},
+		{
+			name: "no records",
+			subject: cloudevent.NFTDID{
+				ChainID:         153,
+				ContractAddress: contractAddr,
+				TokenID:         device2TokenID,
+			},
+			expectedError: true,
+		},
+	}
 
-// // TestGetDataFromFile tests the GetDataFromFile function.
-// func TestGetDataFromFile(t *testing.T) {
-// 	chContainer := setupClickHouseContainer(t)
-// 	deviceAddr1 := randAddress()
-// 	deviceAddr2 := randAddress()
+	indexFileService := indexrepo.New(conn, nil)
 
-// 	conn, err := chContainer.GetClickHouseAsConn()
-// 	require.NoError(t, err)
-// 	ctx := context.Background()
-// 	_ = insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: time.Now().Add(-1 * time.Hour)})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := indexrepo.CloudEventSearchOptions{
+				DataType: &dataType,
+				Subject:  &tt.subject,
+			}
+			filename, err := indexFileService.GetLatestCloudEventFileName(context.Background(), opts)
 
-// 	tests := []struct {
-// 		name            string
-// 		deviceAddr      common.Address
-// 		expectedContent []byte
-// 		expectedError   bool
-// 	}{
-// 		{
-// 			name:            "valid file content",
-// 			deviceAddr:      deviceAddr1,
-// 			expectedContent: []byte(`{"vin": "1HGCM82633A123456"}`),
-// 		},
-// 		{
-// 			name:          "no records",
-// 			deviceAddr:    deviceAddr2,
-// 			expectedError: true,
-// 		},
-// 	}
+			if tt.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedFile, filename)
+			}
+		})
+	}
+}
 
-// 	ctrl := gomock.NewController(t)
-// 	mockS3Client := NewMockObjectGetter(ctrl)
-// 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
-// 	mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.GetObjectOutput{
-// 		Body:          io.NopCloser(bytes.NewReader(content)),
-// 		ContentLength: ref(int64(len(content))),
-// 	}, nil).AnyTimes()
+// TestGetDataFromFile tests the GetDataFromFile function.
+func TestGetDataFromFile(t *testing.T) {
+	chContainer := setupClickHouseContainer(t)
+	contractAddr := randAddress()
+	device1TokenID := uint32(1234567890)
+	device2TokenID := uint32(976543210)
 
-// 	indexFileService := indexrepo.New(conn, mockS3Client)
+	conn, err := chContainer.GetClickHouseAsConn()
+	require.NoError(t, err)
+	ctx := context.Background()
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			opts := indexrepo.CloudEventSearchOptions{
-// 				DataType: &dataType,
-// 				Subject:  &nameindexer.Subject{Identifier: nameindexer.Address(tt.deviceAddr)},
-// 			}
-// 			content, err := indexFileService.GetLatestData(context.Background(), "test-bucket", opts)
+	eventIdx := &nameindexer.CloudEventIndex{
+		Subject: cloudevent.NFTDID{
+			ChainID:         153,
+			ContractAddress: contractAddr,
+			TokenID:         device1TokenID,
+		},
+		DataType:  dataType,
+		Timestamp: time.Now().Add(-1 * time.Hour),
+	}
 
-// 			if tt.expectedError {
-// 				require.Error(t, err)
-// 			} else {
-// 				require.NoError(t, err)
-// 				require.Equal(t, tt.expectedContent, content)
-// 			}
-// 		})
-// 	}
-// }
+	_ = insertTestData(t, ctx, conn, eventIdx)
+
+	tests := []struct {
+		name            string
+		subject         cloudevent.NFTDID
+		expectedContent []byte
+		expectedError   bool
+	}{
+		{
+			name: "valid file content",
+			subject: cloudevent.NFTDID{
+				ChainID:         153,
+				ContractAddress: contractAddr,
+				TokenID:         device1TokenID,
+			},
+			expectedContent: []byte(`{"vin": "1HGCM82633A123456"}`),
+		},
+		{
+			name: "no records",
+			subject: cloudevent.NFTDID{
+				ChainID:         153,
+				ContractAddress: contractAddr,
+				TokenID:         device2TokenID,
+			},
+			expectedError: true,
+		},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockS3Client := NewMockObjectGetter(ctrl)
+	content := []byte(`{"vin": "1HGCM82633A123456"}`)
+	mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.GetObjectOutput{
+		Body:          io.NopCloser(bytes.NewReader(content)),
+		ContentLength: ref(int64(len(content))),
+	}, nil).AnyTimes()
+
+	indexFileService := indexrepo.New(conn, mockS3Client)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := indexrepo.CloudEventSearchOptions{
+				DataType: &dataType,
+				Subject:  &tt.subject,
+			}
+			content, err := indexFileService.GetLatestCloudEventData(context.Background(), "test-bucket", opts)
+
+			if tt.expectedError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedContent, content)
+			}
+		})
+	}
+}
 
 func TestStoreFile(t *testing.T) {
 	chContainer := setupClickHouseContainer(t)
@@ -269,11 +307,6 @@ func TestGetData(t *testing.T) {
 	eventIdx4.SecondaryFiller = "55"
 	file4Name := insertTestData(t, ctx, conn, &eventIdx4)
 
-	// file1Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-4 * time.Hour)})
-	// file2Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-3 * time.Hour)})
-	// file3Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-2 * time.Hour), PrimaryFiller: "AA"})
-	// file4Name := insertTestData(t, ctx, conn, nameindexer.Index{Subject: nameindexer.Subject{Identifier: nameindexer.Address(deviceAddr1)}, DataType: dataType, Timestamp: now.Add(-1 * time.Hour), SecondaryFiller: "55"})
-
 	tests := []struct {
 		name          string
 		opts          indexrepo.CloudEventSearchOptions
@@ -299,6 +332,7 @@ func TestGetData(t *testing.T) {
 				},
 			},
 			expectedFiles: nil,
+			expectedError: true,
 		},
 		{
 			name: "data within time range",

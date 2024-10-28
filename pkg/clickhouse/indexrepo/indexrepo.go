@@ -120,6 +120,9 @@ func (s *Service) GetFileNames(ctx context.Context, limit int, opts SearchOption
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to iterate over filenames: %w", err)
 	}
+	if len(filenames) == 0 {
+		return nil, fmt.Errorf("no filenames found for subject %w", sql.ErrNoRows)
+	}
 	return filenames, nil
 }
 
