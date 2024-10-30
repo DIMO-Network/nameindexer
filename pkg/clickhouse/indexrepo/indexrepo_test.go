@@ -218,7 +218,7 @@ func TestGetDataFromFile(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedContent, content)
+				require.Equal(t, tt.expectedContent, content.Data)
 			}
 		})
 	}
@@ -386,7 +386,7 @@ func TestGetData(t *testing.T) {
 			} else {
 				require.Len(t, data, len(expectedContent))
 				for i, content := range expectedContent {
-					require.Equal(t, content, data[i])
+					require.Equal(t, content, data[i].Data)
 				}
 				require.NoError(t, err)
 			}

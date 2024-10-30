@@ -33,6 +33,11 @@ type ObjectGetter interface {
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 }
 
+type FileData struct {
+	Filename string
+	Data     []byte
+}
+
 // New creates a new instance of serviceService.
 func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 	return &Service{
@@ -126,9 +131,9 @@ func (s *Service) GetFileNames(ctx context.Context, limit int, opts SearchOption
 	return filenames, nil
 }
 
-// GetDataFromFiles fetches and returns the data for the given filenames.
-func (s *Service) GetDataFromFileNames(ctx context.Context, filenames []string, bucketName string) ([][]byte, error) {
-	data := make([][]byte, len(filenames))
+// GetDataFromFileNames fetches and returns the data for the given filenames.
+func (s *Service) GetDataFromFileNames(ctx context.Context, filenames []string, bucketName string) ([]FileData, error) {
+	data := make([]FileData, len(filenames))
 	var err error
 	for i, filename := range filenames {
 		data[i], err = s.GetDataFromFile(ctx, filename, bucketName)
@@ -140,7 +145,7 @@ func (s *Service) GetDataFromFileNames(ctx context.Context, filenames []string, 
 }
 
 // GetCloudEventData fetches and returns the data for the given subject.
-func (s *Service) GetCloudEventData(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([][]byte, error) {
+func (s *Service) GetCloudEventData(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([]FileData, error) {
 	searchOpts, err := opts.ToSearchOptions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
@@ -148,8 +153,8 @@ func (s *Service) GetCloudEventData(ctx context.Context, bucketName string, limi
 	return s.GetData(ctx, bucketName, limit, searchOpts)
 }
 
-// GetData fetches and returns the data for the given subject.
-func (s *Service) GetData(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([][]byte, error) {
+// GetData fetches and returns the data for the given subject. The data is returned as a map with the filename as the key.
+func (s *Service) GetData(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]FileData, error) {
 	filenames, err := s.GetFileNames(ctx, limit, opts)
 	if err != nil {
 		return nil, err
@@ -164,45 +169,48 @@ func (s *Service) GetData(ctx context.Context, bucketName string, limit int, opt
 }
 
 // GetLatestCloudEventData fetches and returns the latest data for the given subject.
-func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string, opts CloudEventSearchOptions) ([]byte, error) {
+func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string, opts CloudEventSearchOptions) (FileData, error) {
 	searchOpts, err := opts.ToSearchOptions()
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
+		return FileData{}, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
 	return s.GetLatestData(ctx, bucketName, searchOpts)
 }
 
 // GetLatestData fetches and returns the latest data for the given subject.
-func (s *Service) GetLatestData(ctx context.Context, bucketName string, opts SearchOptions) ([]byte, error) {
+func (s *Service) GetLatestData(ctx context.Context, bucketName string, opts SearchOptions) (FileData, error) {
 	filename, err := s.GetLatestFileName(ctx, opts)
 	if err != nil {
-		return nil, err
+		return FileData{}, err
 	}
 
 	data, err := s.GetDataFromFile(ctx, filename, bucketName)
 	if err != nil {
-		return nil, err
+		return FileData{}, err
 	}
 
 	return data, nil
 }
 
 // GetDataFromFile gets the data from S3 by filename.
-func (s *Service) GetDataFromFile(ctx context.Context, filename, bucketName string) ([]byte, error) {
+func (s *Service) GetDataFromFile(ctx context.Context, filename, bucketName string) (FileData, error) {
 	obj, err := s.objGetter.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(filename),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get object from S3: %w", err)
+		return FileData{}, fmt.Errorf("failed to get object from S3: %w", err)
 	}
 	defer obj.Body.Close() //nolint
 
 	data, err := io.ReadAll(obj.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read object body: %w", err)
+		return FileData{}, fmt.Errorf("failed to read object body: %w", err)
 	}
-	return data, nil
+	return FileData{
+		Filename: filename,
+		Data:     data,
+	}, nil
 }
 
 // StoreCloudEventFile stores the given data in S3 with the given index.

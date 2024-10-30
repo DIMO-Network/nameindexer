@@ -21,6 +21,7 @@ bin/
 # Go workspace file
 go.work
 settings.yaml
+.DS_Store
 
 .idea
 .vscode/
