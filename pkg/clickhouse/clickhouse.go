@@ -19,8 +19,8 @@ const (
 	SubjectColumn = "subject"
 	// SecondaryFillerColumn is the name of the secondary filler column in Clickhouse.
 	SecondaryFillerColumn = "secondary_filler"
-	// FileNameColumn is the name of the file name column in Clickhouse.
-	FileNameColumn = "file_name"
+	// IndexKeyColumn is the name of the index name column in Clickhouse.
+	IndexKeyColumn = "index_key"
 	// SourceColumn is the name of the source column in Clickhouse.
 	SourceColumn = "source"
 	// ProducerColumn is the name of the producer column in Clickhouse.
@@ -37,17 +37,16 @@ const (
 		DataTypeColumn + ", " +
 		SecondaryFillerColumn + ", " +
 		ProducerColumn + ", " +
-		FileNameColumn + ", " +
-		OptionalColumn +
+		OptionalColumn + ", " +
+		IndexKeyColumn +
 		") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	// InsertStm = fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", TableName, TimestampColumn, PrimaryFillerColumn, DataTypeColumn, SubjectColumn, SecondaryFillerColumn, SourceColumn, FileNameColumn, ProducerColumn)
 )
 
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.
 // The order of the elements in the array match the order of the columns in the table.
 func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
 	index := origIndex.WithEncodedParts()
-	fileName, err := nameindexer.EncodeIndex(origIndex)
+	indexKey, err := nameindexer.EncodeIndex(origIndex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode index: %w", err)
 	}
@@ -59,8 +58,8 @@ func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
 		index.DataType,        // DataVersion
 		index.SecondaryFiller, // Secondary filler
 		index.Producer,        // Producer DID
-		fileName,
-		index.Optional, // Optional
+		index.Optional,        // Optional
+		indexKey,
 	}, nil
 }
 

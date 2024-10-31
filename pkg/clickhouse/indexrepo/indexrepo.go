@@ -1,4 +1,4 @@
-// Package service contains service code for gettting and managing index files.
+// Package indexrepo contains service code for gettting and managing indexed objects.
 package indexrepo
 
 import (
@@ -21,7 +21,7 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
-// Service manages and retrieves data messages from index files in S3.
+// Service manages and retrieves data messages from indexed objects in S3.
 type Service struct {
 	objGetter ObjectGetter
 	chConn    clickhouse.Conn
@@ -33,8 +33,9 @@ type ObjectGetter interface {
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 }
 
-type FileData struct {
-	Filename string
+// DataObject represents an inedexed object
+type DataObject struct {
+	IndexKey string
 	Data     []byte
 }
 
@@ -46,19 +47,19 @@ func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 	}
 }
 
-// GetLatestCloudEvenFileName returns the latest filename for the given subject and data type.
-func (s *Service) GetLatestCloudEventFileName(ctx context.Context, opts CloudEventSearchOptions) (string, error) {
+// GetLatestCloudEventIndexKey returns the latest index key for the given subject and data type.
+func (s *Service) GetLatestCloudEventIndexKey(ctx context.Context, opts CloudEventSearchOptions) (string, error) {
 	searchOpts, err := opts.ToSearchOptions()
 	if err != nil {
 		return "", fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
-	return s.GetLatestFileName(ctx, searchOpts)
+	return s.GetLatestIndexKey(ctx, searchOpts)
 }
 
-// GetLatestFileName returns the latest filename for the given subject and data type.
-func (s *Service) GetLatestFileName(ctx context.Context, opts SearchOptions) (string, error) {
+// GetLatestIndexKey returns the latest index key for the given subject and data type.
+func (s *Service) GetLatestIndexKey(ctx context.Context, opts SearchOptions) (string, error) {
 	mods := []qm.QueryMod{
-		qm.Select("argMax(" + chindexer.FileNameColumn + ", " + chindexer.TimestampColumn + ") AS filename"),
+		qm.Select("argMax(" + chindexer.IndexKeyColumn + ", " + chindexer.TimestampColumn + ") AS index_key"),
 		qm.From(chindexer.TableName),
 	}
 	optsMods, err := opts.QueryMods()
@@ -67,34 +68,34 @@ func (s *Service) GetLatestFileName(ctx context.Context, opts SearchOptions) (st
 	}
 	mods = append(mods, optsMods...)
 	query, args := newQuery(mods...)
-	var filename string
-	err = s.chConn.QueryRow(ctx, query, args...).Scan(&filename)
+	var indexKey string
+	err = s.chConn.QueryRow(ctx, query, args...).Scan(&indexKey)
 	if err != nil {
-		return "", fmt.Errorf("failed to get latest filename: %w", err)
+		return "", fmt.Errorf("failed to get latest index key: %w", err)
 	}
-	if filename == "" {
-		return "", fmt.Errorf("no filenames found for subject %w", sql.ErrNoRows)
+	if indexKey == "" {
+		return "", fmt.Errorf("no index keys found for subject %w", sql.ErrNoRows)
 	}
-	return filename, nil
+	return indexKey, nil
 }
 
-// GetCloudEventFileNames fetches and returns the filenames for the given options.
-func (s *Service) GetCloudEventFileNames(ctx context.Context, limit int, opts CloudEventSearchOptions) ([]string, error) {
+// GetCloudEventIndexKeys fetches and returns the index keys for the given options.
+func (s *Service) GetCloudEventIndexKeys(ctx context.Context, limit int, opts CloudEventSearchOptions) ([]string, error) {
 	searchOpts, err := opts.ToSearchOptions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
-	return s.GetFileNames(ctx, limit, searchOpts)
+	return s.GetIndexKeys(ctx, limit, searchOpts)
 }
 
-// GetFileNames fetches and returns the filenames for the given options.
-func (s *Service) GetFileNames(ctx context.Context, limit int, opts SearchOptions) ([]string, error) {
+// GetIndexKeys fetches and returns the index keys for the given options.
+func (s *Service) GetIndexKeys(ctx context.Context, limit int, opts SearchOptions) ([]string, error) {
 	order := " DESC"
 	if opts.TimestampAsc {
 		order = " ASC"
 	}
 	mods := []qm.QueryMod{
-		qm.Select(chindexer.FileNameColumn),
+		qm.Select(chindexer.IndexKeyColumn),
 		qm.From(chindexer.TableName),
 		qm.OrderBy(chindexer.TimestampColumn + order),
 		qm.Limit(limit),
@@ -108,59 +109,59 @@ func (s *Service) GetFileNames(ctx context.Context, limit int, opts SearchOption
 	query, args := newQuery(mods...)
 	rows, err := s.chConn.Query(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get filenames: %w", err)
+		return nil, fmt.Errorf("failed to get index keys: %w", err)
 	}
 
-	var filenames []string
+	var indexKeys []string
 	for rows.Next() {
-		var filename string
-		err = rows.Scan(&filename)
+		var indexKey string
+		err = rows.Scan(&indexKey)
 		if err != nil {
 			_ = rows.Close()
-			return nil, fmt.Errorf("failed to scan filename: %w", err)
+			return nil, fmt.Errorf("failed to scan indexKey: %w", err)
 		}
-		filenames = append(filenames, filename)
+		indexKeys = append(indexKeys, indexKey)
 	}
 	_ = rows.Close()
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate over filenames: %w", err)
+		return nil, fmt.Errorf("failed to iterate over index keys: %w", err)
 	}
-	if len(filenames) == 0 {
-		return nil, fmt.Errorf("no filenames found for subject %w", sql.ErrNoRows)
+	if len(indexKeys) == 0 {
+		return nil, fmt.Errorf("no indexKeys found for subject %w", sql.ErrNoRows)
 	}
-	return filenames, nil
+	return indexKeys, nil
 }
 
-// GetDataFromFileNames fetches and returns the data for the given filenames.
-func (s *Service) GetDataFromFileNames(ctx context.Context, filenames []string, bucketName string) ([]FileData, error) {
-	data := make([]FileData, len(filenames))
+// GetObjectsFromIndexKeys fetches and returns the data for the given index keys.
+func (s *Service) GetObjectsFromIndexKeys(ctx context.Context, indexKeys []string, bucketName string) ([]DataObject, error) {
+	data := make([]DataObject, len(indexKeys))
 	var err error
-	for i, filename := range filenames {
-		data[i], err = s.GetDataFromFile(ctx, filename, bucketName)
+	for i, indexKey := range indexKeys {
+		data[i], err = s.GetObjectFromIndex(ctx, indexKey, bucketName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get data from file: %w", err)
+			return nil, fmt.Errorf("failed to get data from inded key: %w", err)
 		}
 	}
 	return data, nil
 }
 
-// GetCloudEventData fetches and returns the data for the given subject.
-func (s *Service) GetCloudEventData(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([]FileData, error) {
+// GetCloudEventObject fetches and returns the data for the given subject.
+func (s *Service) GetCloudEventObject(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([]DataObject, error) {
 	searchOpts, err := opts.ToSearchOptions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
-	return s.GetData(ctx, bucketName, limit, searchOpts)
+	return s.GetObject(ctx, bucketName, limit, searchOpts)
 }
 
-// GetData fetches and returns the data for the given subject. The data is returned as a map with the filename as the key.
-func (s *Service) GetData(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]FileData, error) {
-	filenames, err := s.GetFileNames(ctx, limit, opts)
+// GetObject fetches and returns the data for the given subject. The data is returned as a map with the indexKey as the key.
+func (s *Service) GetObject(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]DataObject, error) {
+	indexKeys, err := s.GetIndexKeys(ctx, limit, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := s.GetDataFromFileNames(ctx, filenames, bucketName)
+	data, err := s.GetObjectsFromIndexKeys(ctx, indexKeys, bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -169,69 +170,69 @@ func (s *Service) GetData(ctx context.Context, bucketName string, limit int, opt
 }
 
 // GetLatestCloudEventData fetches and returns the latest data for the given subject.
-func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string, opts CloudEventSearchOptions) (FileData, error) {
+func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string, opts CloudEventSearchOptions) (DataObject, error) {
 	searchOpts, err := opts.ToSearchOptions()
 	if err != nil {
-		return FileData{}, fmt.Errorf("failed to convert cloud event search options: %w", err)
+		return DataObject{}, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
-	return s.GetLatestData(ctx, bucketName, searchOpts)
+	return s.GetLatestObject(ctx, bucketName, searchOpts)
 }
 
-// GetLatestData fetches and returns the latest data for the given subject.
-func (s *Service) GetLatestData(ctx context.Context, bucketName string, opts SearchOptions) (FileData, error) {
-	filename, err := s.GetLatestFileName(ctx, opts)
+// GetLatestObject fetches and returns the latest data for the given subject.
+func (s *Service) GetLatestObject(ctx context.Context, bucketName string, opts SearchOptions) (DataObject, error) {
+	indexKey, err := s.GetLatestIndexKey(ctx, opts)
 	if err != nil {
-		return FileData{}, err
+		return DataObject{}, err
 	}
 
-	data, err := s.GetDataFromFile(ctx, filename, bucketName)
+	data, err := s.GetObjectFromIndex(ctx, indexKey, bucketName)
 	if err != nil {
-		return FileData{}, err
+		return DataObject{}, err
 	}
 
 	return data, nil
 }
 
-// GetDataFromFile gets the data from S3 by filename.
-func (s *Service) GetDataFromFile(ctx context.Context, filename, bucketName string) (FileData, error) {
+// GetObjectFromIndex gets the data from S3 by indexKey.
+func (s *Service) GetObjectFromIndex(ctx context.Context, indexKey, bucketName string) (DataObject, error) {
 	obj, err := s.objGetter.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
-		Key:    aws.String(filename),
+		Key:    aws.String(indexKey),
 	})
 	if err != nil {
-		return FileData{}, fmt.Errorf("failed to get object from S3: %w", err)
+		return DataObject{}, fmt.Errorf("failed to get object from S3: %w", err)
 	}
 	defer obj.Body.Close() //nolint
 
 	data, err := io.ReadAll(obj.Body)
 	if err != nil {
-		return FileData{}, fmt.Errorf("failed to read object body: %w", err)
+		return DataObject{}, fmt.Errorf("failed to read object body: %w", err)
 	}
-	return FileData{
-		Filename: filename,
+	return DataObject{
+		IndexKey: indexKey,
 		Data:     data,
 	}, nil
 }
 
-// StoreCloudEventFile stores the given data in S3 with the given index.
-func (s *Service) StoreCloudEventFile(ctx context.Context, cloudIndex *nameindexer.CloudEventIndex, bucketName string, data []byte) error {
+// StoreCloudEventObject stores the given data in S3 with the given index.
+func (s *Service) StoreCloudEventObject(ctx context.Context, cloudIndex *nameindexer.CloudEventIndex, bucketName string, data []byte) error {
 	index, err := cloudIndex.ToIndex()
 	if err != nil {
 		return fmt.Errorf("failed to convert cloud event index to index: %w", err)
 	}
-	return s.StoreFile(ctx, &index, bucketName, data)
+	return s.StoreObject(ctx, &index, bucketName, data)
 }
 
-// StoreFile stores the given data in S3 with the given index.
-func (s *Service) StoreFile(ctx context.Context, index *nameindexer.Index, bucketName string, data []byte) error {
-	fileName, err := nameindexer.EncodeIndex(index)
+// StoreObject stores the given data in S3 with the given index.
+func (s *Service) StoreObject(ctx context.Context, index *nameindexer.Index, bucketName string, data []byte) error {
+	indexKey, err := nameindexer.EncodeIndex(index)
 	if err != nil {
 		return fmt.Errorf("failed to encode index: %w", err)
 	}
 
 	_, err = s.objGetter.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &bucketName,
-		Key:    &fileName,
+		Key:    &indexKey,
 		Body:   bytes.NewReader(data),
 	})
 	if err != nil {
@@ -252,20 +253,20 @@ func (s *Service) StoreFile(ctx context.Context, index *nameindexer.Index, bucke
 }
 
 type SearchOptions struct {
-	// After if set only files after this time are returned.
+	// After if set only objects after this time are returned.
 	After time.Time
-	// Before if set only files before this time are returned.
+	// Before if set only objects before this time are returned.
 	Before time.Time
-	// TimestampAsc if set files are queried and returned in ascending order by timestamp.
-	// This option is not applied for the latest file query.
+	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
+	// This option is not applied for the latest query.
 	TimestampAsc bool
-	// PrimaryFiller if set only files for this primary filler are returned.
+	// PrimaryFiller if set only objects for this primary filler are returned.
 	PrimaryFiller *string
-	// DataType if set only files for this data type are returned.
+	// DataType if set only objects for this data type are returned.
 	DataType *string
-	// Subject if set only files for this subject are returned.
+	// Subject if set only objects for this subject are returned.
 	Subject *string
-	// SecondaryFiller if set only files for this secondary filler are returned.
+	// SecondaryFiller if set only objects for this secondary filler are returned.
 	SecondaryFiller *string
 	// Source is the party responsible for creating the data.
 	Source *string
@@ -276,20 +277,20 @@ type SearchOptions struct {
 }
 
 type CloudEventSearchOptions struct {
-	// After if set only files after this time are returned.
+	// After if set only objects after this time are returned.
 	After time.Time
-	// Before if set only files before this time are returned.
+	// Before if set only objects before this time are returned.
 	Before time.Time
-	// TimestampAsc if set files are queried and returned in ascending order by timestamp.
-	// This option is not applied for the latest file query.
+	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
+	// This option is not applied for the latest objects query.
 	TimestampAsc bool
-	// PrimaryFiller if set only files for this primary filler are returned.
+	// PrimaryFiller if set only objects for this primary filler are returned.
 	PrimaryFiller *string
-	// DataType if set only files for this data type are returned.
+	// DataType if set only objects for this data type are returned.
 	DataType *string
-	// Subject if set only files for this subject are returned.
+	// Subject if set only objects for this subject are returned.
 	Subject *cloudevent.NFTDID
-	// SecondaryFiller if set only files for this secondary filler are returned.
+	// SecondaryFiller if set only objects for this secondary filler are returned.
 	SecondaryFiller *string
 	// Source is the party responsible for creating the data.
 	Source *common.Address
