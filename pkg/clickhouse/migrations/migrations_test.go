@@ -90,12 +90,12 @@ func getOrderByCols(ctx context.Context, conn clickhouse.Conn, tableName string)
 	return strings.Split(sortingKey, ", "), nil
 }
 func insesrtOldIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
-	oldInsertStmt := "INSERT INTO " + localch.TableName + " (" + localch.TimestampColumn + ", " + localch.PrimaryFillerColumn + ", " + localch.DataTypeColumn + ", " + localch.SubjectColumn + ", " + localch.SecondaryFillerColumn + ", " + localch.FileNameColumn + ") VALUES (?, ?, ?, ?, ?, ?)"
-	fileName, err := nameindexer.EncodeIndex(index)
+	oldInsertStmt := "INSERT INTO " + localch.TableName + " (" + localch.TimestampColumn + ", " + localch.PrimaryFillerColumn + ", " + localch.DataTypeColumn + ", " + localch.SubjectColumn + ", " + localch.SecondaryFillerColumn + ", " + "file_name" + ") VALUES (?, ?, ?, ?, ?, ?)"
+	indexKey, err := nameindexer.EncodeIndex(index)
 	if err != nil {
 		return fmt.Errorf("failed to encode index: %w", err)
 	}
-	err = conn.Exec(context.Background(), oldInsertStmt, index.Timestamp, index.PrimaryFiller, index.DataType, index.Subject, index.SecondaryFiller, fileName)
+	err = conn.Exec(context.Background(), oldInsertStmt, index.Timestamp, index.PrimaryFiller, index.DataType, index.Subject, index.SecondaryFiller, indexKey)
 	if err != nil {
 		return fmt.Errorf("failed to insert old index: %w", err)
 	}

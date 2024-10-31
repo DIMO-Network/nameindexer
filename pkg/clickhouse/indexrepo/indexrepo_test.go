@@ -58,13 +58,13 @@ func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, ind
 
 	err = conn.Exec(ctx, chindexer.InsertStmt, values...)
 	require.NoError(t, err)
-	filename, err := nameindexer.EncodeCloudEventIndex(index)
+	indexkey, err := nameindexer.EncodeCloudEventIndex(index)
 	require.NoError(t, err)
-	return filename
+	return indexkey
 }
 
-// TestGetLatestFileName tests the GetLatestFileName function.
-func TestGetLatestFileName(t *testing.T) {
+// TestGetLatestIndexKey tests the GetLatestIndexKey function.
+func TestGetLatestIndexKey(t *testing.T) {
 	chContainer := setupClickHouseContainer(t)
 
 	// Insert test data
@@ -99,22 +99,22 @@ func TestGetLatestFileName(t *testing.T) {
 
 	// Insert test data
 	_ = insertTestData(t, ctx, conn, eventIdx1)
-	file2Name := insertTestData(t, ctx, conn, eventIdx2)
+	indexKey2 := insertTestData(t, ctx, conn, eventIdx2)
 
 	tests := []struct {
-		name          string
-		subject       cloudevent.NFTDID
-		expectedFile  string
-		expectedError bool
+		name             string
+		subject          cloudevent.NFTDID
+		expectedIndexKey string
+		expectedError    bool
 	}{
 		{
-			name: "valid latest file",
+			name: "valid latest object",
 			subject: cloudevent.NFTDID{
 				ChainID:         153,
 				ContractAddress: contractAddr,
 				TokenID:         device1TokenID,
 			},
-			expectedFile: file2Name,
+			expectedIndexKey: indexKey2,
 		},
 		{
 			name: "no records",
@@ -127,7 +127,7 @@ func TestGetLatestFileName(t *testing.T) {
 		},
 	}
 
-	indexFileService := indexrepo.New(conn, nil)
+	indexService := indexrepo.New(conn, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -135,20 +135,20 @@ func TestGetLatestFileName(t *testing.T) {
 				DataType: &dataType,
 				Subject:  &tt.subject,
 			}
-			filename, err := indexFileService.GetLatestCloudEventFileName(context.Background(), opts)
+			indexkey, err := indexService.GetLatestCloudEventIndexKey(context.Background(), opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedFile, filename)
+				require.Equal(t, tt.expectedIndexKey, indexkey)
 			}
 		})
 	}
 }
 
-// TestGetDataFromFile tests the GetDataFromFile function.
-func TestGetDataFromFile(t *testing.T) {
+// TestGetDataFromIndex tests the GetDataFromIndex function.
+func TestGetDataFromIndex(t *testing.T) {
 	chContainer := setupClickHouseContainer(t)
 	contractAddr := randAddress()
 	device1TokenID := uint32(1234567890)
@@ -177,7 +177,7 @@ func TestGetDataFromFile(t *testing.T) {
 		expectedError   bool
 	}{
 		{
-			name: "valid file content",
+			name: "valid object content",
 			subject: cloudevent.NFTDID{
 				ChainID:         153,
 				ContractAddress: contractAddr,
@@ -204,7 +204,7 @@ func TestGetDataFromFile(t *testing.T) {
 		ContentLength: ref(int64(len(content))),
 	}, nil).AnyTimes()
 
-	indexFileService := indexrepo.New(conn, mockS3Client)
+	indexService := indexrepo.New(conn, mockS3Client)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -212,7 +212,7 @@ func TestGetDataFromFile(t *testing.T) {
 				DataType: &dataType,
 				Subject:  &tt.subject,
 			}
-			content, err := indexFileService.GetLatestCloudEventData(context.Background(), "test-bucket", opts)
+			content, err := indexService.GetLatestCloudEventData(context.Background(), "test-bucket", opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -224,7 +224,7 @@ func TestGetDataFromFile(t *testing.T) {
 	}
 }
 
-func TestStoreFile(t *testing.T) {
+func TestStoreObject(t *testing.T) {
 	chContainer := setupClickHouseContainer(t)
 
 	conn, err := chContainer.GetClickHouseAsConn()
@@ -235,7 +235,7 @@ func TestStoreFile(t *testing.T) {
 	mockS3Client := NewMockObjectGetter(ctrl)
 	mockS3Client.EXPECT().PutObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.PutObjectOutput{}, nil).AnyTimes()
 
-	indexFileService := indexrepo.New(conn, mockS3Client)
+	indexService := indexrepo.New(conn, mockS3Client)
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	index := nameindexer.CloudEventIndex{
@@ -248,7 +248,7 @@ func TestStoreFile(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	err = indexFileService.StoreCloudEventFile(ctx, &index, "test-bucket", content)
+	err = indexService.StoreCloudEventObject(ctx, &index, "test-bucket", content)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
@@ -256,11 +256,11 @@ func TestStoreFile(t *testing.T) {
 		DataType: &dataType,
 		Subject:  &index.Subject,
 	}
-	filename, err := indexFileService.GetLatestCloudEventFileName(ctx, opts)
+	indexkey, err := indexService.GetLatestCloudEventIndexKey(ctx, opts)
 	require.NoError(t, err)
-	expectedFileName, err := nameindexer.EncodeCloudEventIndex(&index)
+	expectedIndexKey, err := nameindexer.EncodeCloudEventIndex(&index)
 	require.NoError(t, err)
-	require.Equal(t, expectedFileName, filename)
+	require.Equal(t, expectedIndexKey, indexkey)
 }
 
 // TestGetData tests the GetData function with different SearchOptions combinations.
@@ -294,24 +294,24 @@ func TestGetData(t *testing.T) {
 		DataType:        dataType,
 		SecondaryFiller: "00",
 	}
-	file1Name := insertTestData(t, ctx, conn, &eventIdx)
+	indexKey1 := insertTestData(t, ctx, conn, &eventIdx)
 	eventIdx2 := eventIdx
 	eventIdx2.Timestamp = now.Add(-3 * time.Hour)
-	file2Name := insertTestData(t, ctx, conn, &eventIdx2)
+	indexKey2 := insertTestData(t, ctx, conn, &eventIdx2)
 	eventIdx3 := eventIdx
 	eventIdx3.Timestamp = now.Add(-2 * time.Hour)
 	eventIdx3.PrimaryFiller = "0F"
-	file3Name := insertTestData(t, ctx, conn, &eventIdx3)
+	indexKey3 := insertTestData(t, ctx, conn, &eventIdx3)
 	eventIdx4 := eventIdx
 	eventIdx4.Timestamp = now.Add(-1 * time.Hour)
 	eventIdx4.SecondaryFiller = "55"
-	file4Name := insertTestData(t, ctx, conn, &eventIdx4)
+	indexKey4 := insertTestData(t, ctx, conn, &eventIdx4)
 
 	tests := []struct {
-		name          string
-		opts          indexrepo.CloudEventSearchOptions
-		expectedFiles []string
-		expectedError bool
+		name              string
+		opts              indexrepo.CloudEventSearchOptions
+		expectedIndexKeys []string
+		expectedError     bool
 	}{
 		{
 			name: "valid data with address",
@@ -319,7 +319,7 @@ func TestGetData(t *testing.T) {
 				DataType: &dataType,
 				Subject:  &eventIdx.Subject,
 			},
-			expectedFiles: []string{file4Name, file3Name, file2Name, file1Name},
+			expectedIndexKeys: []string{indexKey4, indexKey3, indexKey2, indexKey1},
 		},
 		{
 			name: "no records with address",
@@ -331,8 +331,8 @@ func TestGetData(t *testing.T) {
 					TokenID:         device2TokenID,
 				},
 			},
-			expectedFiles: nil,
-			expectedError: true,
+			expectedIndexKeys: nil,
+			expectedError:     true,
 		},
 		{
 			name: "data within time range",
@@ -341,7 +341,7 @@ func TestGetData(t *testing.T) {
 				After:    now.Add(-3 * time.Hour),
 				Before:   now.Add(-1 * time.Minute),
 			},
-			expectedFiles: []string{file4Name, file3Name},
+			expectedIndexKeys: []string{indexKey4, indexKey3},
 		},
 		{
 			name: "data with primary filler",
@@ -349,7 +349,7 @@ func TestGetData(t *testing.T) {
 				DataType:      &dataType,
 				PrimaryFiller: ref("0S"),
 			},
-			expectedFiles: []string{file4Name, file2Name, file1Name},
+			expectedIndexKeys: []string{indexKey4, indexKey2, indexKey1},
 		},
 		{
 			name: "data with secondary filler",
@@ -357,7 +357,7 @@ func TestGetData(t *testing.T) {
 				DataType:        &dataType,
 				SecondaryFiller: ref("00"),
 			},
-			expectedFiles: []string{file3Name, file2Name, file1Name},
+			expectedIndexKeys: []string{indexKey3, indexKey2, indexKey1},
 		},
 	}
 
@@ -366,12 +366,12 @@ func TestGetData(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockS3Client := NewMockObjectGetter(ctrl)
 
-			indexFileService := indexrepo.New(conn, mockS3Client)
+			indexService := indexrepo.New(conn, mockS3Client)
 			var expectedContent [][]byte
-			for _, fileName := range tt.expectedFiles {
+			for _, indexKey := range tt.expectedIndexKeys {
 				mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
-					require.Equal(t, *params.Key, fileName)
-					content := []byte(`{"data": {"` + fileName + `"}}`)
+					require.Equal(t, *params.Key, indexKey)
+					content := []byte(`{"data": {"` + indexKey + `"}}`)
 					expectedContent = append(expectedContent, content)
 					return &s3.GetObjectOutput{
 						Body:          io.NopCloser(bytes.NewReader(content)),
@@ -379,7 +379,7 @@ func TestGetData(t *testing.T) {
 					}, nil
 				})
 			}
-			data, err := indexFileService.GetCloudEventData(context.Background(), "test-bucket", 10, tt.opts)
+			data, err := indexService.GetCloudEventObject(context.Background(), "test-bucket", 10, tt.opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
