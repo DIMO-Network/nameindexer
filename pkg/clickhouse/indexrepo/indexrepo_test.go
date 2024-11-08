@@ -379,7 +379,7 @@ func TestGetData(t *testing.T) {
 					}, nil
 				})
 			}
-			data, err := indexService.GetCloudEventObject(context.Background(), "test-bucket", 10, tt.opts)
+			data, err := indexService.GetCloudEventObjects(context.Background(), "test-bucket", 10, tt.opts)
 
 			if tt.expectedError {
 				require.Error(t, err)

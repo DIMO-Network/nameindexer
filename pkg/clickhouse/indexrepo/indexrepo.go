@@ -145,17 +145,17 @@ func (s *Service) GetObjectsFromIndexKeys(ctx context.Context, indexKeys []strin
 	return data, nil
 }
 
-// GetCloudEventObject fetches and returns the data for the given subject.
-func (s *Service) GetCloudEventObject(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([]DataObject, error) {
+// GetCloudEventObjects fetches and returns the data for the given subject.
+func (s *Service) GetCloudEventObjects(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([]DataObject, error) {
 	searchOpts, err := opts.ToSearchOptions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
-	return s.GetObject(ctx, bucketName, limit, searchOpts)
+	return s.GetObjects(ctx, bucketName, limit, searchOpts)
 }
 
-// GetObject fetches and returns the data for the given subject. The data is returned as a map with the indexKey as the key.
-func (s *Service) GetObject(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]DataObject, error) {
+// GetObjects fetches and returns the data for the given subject. The data is returned as a map with the indexKey as the key.
+func (s *Service) GetObjects(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]DataObject, error) {
 	indexKeys, err := s.GetIndexKeys(ctx, limit, opts)
 	if err != nil {
 		return nil, err
