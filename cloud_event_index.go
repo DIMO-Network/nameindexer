@@ -9,6 +9,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+const (
+	// FillerStatus is the filler value for status type cloud events.
+	FillerStatus = "A"
+	// FillerFingerprint is the filler value for fingerprint type cloud events.
+	FillerFingerprint = "E"
+	// FillerVerifiableCredential is the filler value for verifiable credential type cloud events.
+	FillerVerifiableCredential = "V"
+	// FillerUnknown is the filler value for unknown type cloud events.
+	FillerUnknown = "U"
+)
+
 // CloudEventIndex represents the components of a decoded index.
 type CloudEventIndex struct {
 	// Subject is the subject of the data represented by the index.
@@ -52,21 +63,25 @@ func (c CloudEventIndex) ToIndex() (Index, error) {
 func CloudTypeToFiller(status string) string {
 	switch status {
 	case cloudevent.TypeStatus:
-		return "A"
+		return FillerStatus
 	case cloudevent.TypeFingerprint:
-		return "E"
+		return FillerFingerprint
+	case cloudevent.TypeVerifableCredential:
+		return FillerVerifiableCredential
 	default:
-		return "U"
+		return FillerUnknown
 	}
 }
 
 // FillerToCloudType converts a filler string to a cloud event type.
 func FillerToCloudType(filler string) string {
 	switch filler {
-	case "A":
+	case FillerStatus:
 		return cloudevent.TypeStatus
-	case "E":
+	case FillerFingerprint:
 		return cloudevent.TypeFingerprint
+	case FillerVerifiableCredential:
+		return cloudevent.TypeVerifableCredential
 	default:
 		return cloudevent.TypeUnknown
 	}
