@@ -198,7 +198,7 @@ func TestGetDataFromIndex(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockS3Client := NewMockObjectGetter(ctrl)
-	content := []byte(`{"vin": "1HGCM82633A123456"}`)
+	content := []byte(`{"data":{"vin": "1HGCM82633A123456"}}`)
 	mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.GetObjectOutput{
 		Body:          io.NopCloser(bytes.NewReader(content)),
 		ContentLength: ref(int64(len(content))),
@@ -218,7 +218,7 @@ func TestGetDataFromIndex(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedContent, content.Data)
+				require.EqualValues(t, tt.expectedContent, content.Data)
 			}
 		})
 	}
