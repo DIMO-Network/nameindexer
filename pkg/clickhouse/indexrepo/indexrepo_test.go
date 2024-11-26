@@ -372,8 +372,9 @@ func TestGetData(t *testing.T) {
 			for _, indexKey := range tt.expectedIndexKeys {
 				mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 					require.Equal(t, *params.Key, indexKey)
-					content := []byte(`{"data": {"` + indexKey + `"}}`)
-					expectedContent = append(expectedContent, content)
+					quotedKey := `"` + indexKey + `"`
+					content := []byte(`{"data":` + quotedKey + `}`)
+					expectedContent = append(expectedContent, []byte(quotedKey))
 					return &s3.GetObjectOutput{
 						Body:          io.NopCloser(bytes.NewReader(content)),
 						ContentLength: ref(int64(len(content))),
@@ -385,11 +386,11 @@ func TestGetData(t *testing.T) {
 			if tt.expectedError {
 				require.Error(t, err)
 			} else {
+				require.NoError(t, err)
 				require.Len(t, data, len(expectedContent))
 				for i, content := range expectedContent {
-					require.Equal(t, content, data[i].Data)
+					require.Equal(t, string(content), string(data[i].Data))
 				}
-				require.NoError(t, err)
 			}
 		})
 	}
