@@ -62,13 +62,3 @@ func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
 		indexKey,
 	}, nil
 }
-
-// CloudEventIndexToSlice converts a CloudEventIndex to an array of any for Clickhouse insertion.
-// The order of the elements in the array match the order of the columns in the table.
-func CloudEventIndexToSlice(origIndex *nameindexer.CloudEventIndex) ([]any, error) {
-	index, err := origIndex.ToIndex()
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert CloudEventIndex to Index: %w", err)
-	}
-	return IndexToSlice(&index)
-}

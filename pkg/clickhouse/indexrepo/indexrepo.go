@@ -214,15 +214,6 @@ func (s *Service) GetObjectFromIndex(ctx context.Context, indexKey, bucketName s
 	}, nil
 }
 
-// StoreCloudEventObject stores the given data in S3 with the given index.
-func (s *Service) StoreCloudEventObject(ctx context.Context, cloudIndex *nameindexer.CloudEventIndex, bucketName string, data []byte) error {
-	index, err := cloudIndex.ToIndex()
-	if err != nil {
-		return fmt.Errorf("failed to convert cloud event index to index: %w", err)
-	}
-	return s.StoreObject(ctx, &index, bucketName, data)
-}
-
 // StoreObject stores the given data in S3 with the given index.
 func (s *Service) StoreObject(ctx context.Context, index *nameindexer.Index, bucketName string, data []byte) error {
 	indexKey, err := nameindexer.EncodeIndex(index)
@@ -284,10 +275,10 @@ type CloudEventSearchOptions struct {
 	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
 	// This option is not applied for the latest objects query.
 	TimestampAsc bool
-	// PrimaryFiller if set only objects for this primary filler are returned.
-	PrimaryFiller *string
-	// DataType if set only objects for this data type are returned.
-	DataType *string
+	// Type if not empty cloudevents for any of these types are returned.
+	Type *string
+	// DataType if set only objects with a matching data version
+	DataVersion *string
 	// Subject if set only objects for this subject are returned.
 	Subject *cloudevent.NFTDID
 	// SecondaryFiller if set only objects for this secondary filler are returned.
@@ -301,12 +292,17 @@ type CloudEventSearchOptions struct {
 }
 
 func (c *CloudEventSearchOptions) ToSearchOptions() (SearchOptions, error) {
+	var filler *string
+	if c.Type != nil {
+		fillerVal := nameindexer.CloudTypeToFiller(*c.Type)
+		filler = &fillerVal
+	}
 	opts := SearchOptions{
 		After:           c.After,
 		Before:          c.Before,
 		TimestampAsc:    c.TimestampAsc,
-		PrimaryFiller:   c.PrimaryFiller,
-		DataType:        c.DataType,
+		PrimaryFiller:   filler,
+		DataType:        c.DataVersion,
 		SecondaryFiller: c.SecondaryFiller,
 		Optional:        c.Optional,
 	}

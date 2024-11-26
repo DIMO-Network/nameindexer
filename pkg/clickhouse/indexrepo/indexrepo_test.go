@@ -52,13 +52,13 @@ func setupClickHouseContainer(t *testing.T) *container.Container {
 }
 
 // insertTestData inserts test data into ClickHouse.
-func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, index *nameindexer.CloudEventIndex) string {
-	values, err := chindexer.CloudEventIndexToSlice(index)
+func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, index *nameindexer.Index) string {
+	values, err := chindexer.IndexToSlice(index)
 	require.NoError(t, err)
 
 	err = conn.Exec(ctx, chindexer.InsertStmt, values...)
 	require.NoError(t, err)
-	indexkey, err := nameindexer.EncodeCloudEventIndex(index)
+	indexkey, err := nameindexer.EncodeIndex(index)
 	require.NoError(t, err)
 	return indexkey
 }
@@ -77,22 +77,22 @@ func TestGetLatestIndexKey(t *testing.T) {
 	now := time.Now()
 
 	// Create test indices
-	eventIdx1 := &nameindexer.CloudEventIndex{
-		Subject: cloudevent.NFTDID{
+	eventIdx1 := &nameindexer.Index{
+		Subject: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
-		},
+		}),
 		DataType:  dataType,
 		Timestamp: now.Add(-1 * time.Hour),
 	}
 
-	eventIdx2 := &nameindexer.CloudEventIndex{
-		Subject: cloudevent.NFTDID{
+	eventIdx2 := &nameindexer.Index{
+		Subject: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
-		},
+		}),
 		DataType:  dataType,
 		Timestamp: now,
 	}
@@ -132,8 +132,8 @@ func TestGetLatestIndexKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := indexrepo.CloudEventSearchOptions{
-				DataType: &dataType,
-				Subject:  &tt.subject,
+				DataVersion: &dataType,
+				Subject:     &tt.subject,
 			}
 			indexkey, err := indexService.GetLatestCloudEventIndexKey(context.Background(), opts)
 
@@ -158,12 +158,12 @@ func TestGetDataFromIndex(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	eventIdx := &nameindexer.CloudEventIndex{
-		Subject: cloudevent.NFTDID{
+	eventIdx := &nameindexer.Index{
+		Subject: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
-		},
+		}),
 		DataType:  dataType,
 		Timestamp: time.Now().Add(-1 * time.Hour),
 	}
@@ -209,8 +209,8 @@ func TestGetDataFromIndex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := indexrepo.CloudEventSearchOptions{
-				DataType: &dataType,
-				Subject:  &tt.subject,
+				DataVersion: &dataType,
+				Subject:     &tt.subject,
 			}
 			content, err := indexService.GetLatestCloudEventData(context.Background(), "test-bucket", opts)
 
@@ -238,27 +238,28 @@ func TestStoreObject(t *testing.T) {
 	indexService := indexrepo.New(conn, mockS3Client)
 
 	content := []byte(`{"vin": "1HGCM82633A123456"}`)
-	index := nameindexer.CloudEventIndex{
-		Subject: cloudevent.NFTDID{
-			ChainID:         153,
-			ContractAddress: randAddress(),
-			TokenID:         123456,
-		},
+	did := cloudevent.NFTDID{
+		ChainID:         153,
+		ContractAddress: randAddress(),
+		TokenID:         123456,
+	}
+	index := nameindexer.Index{
+		Subject:   nameindexer.EncodeNFTDID(did),
 		DataType:  dataType,
 		Timestamp: time.Now(),
 	}
 
-	err = indexService.StoreCloudEventObject(ctx, &index, "test-bucket", content)
+	err = indexService.StoreObject(ctx, &index, "test-bucket", content)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
 	opts := indexrepo.CloudEventSearchOptions{
-		DataType: &dataType,
-		Subject:  &index.Subject,
+		DataVersion: &dataType,
+		Subject:     &did,
 	}
 	indexkey, err := indexService.GetLatestCloudEventIndexKey(ctx, opts)
 	require.NoError(t, err)
-	expectedIndexKey, err := nameindexer.EncodeCloudEventIndex(&index)
+	expectedIndexKey, err := nameindexer.EncodeIndex(&index)
 	require.NoError(t, err)
 	require.Equal(t, expectedIndexKey, indexkey)
 }
@@ -276,21 +277,21 @@ func TestGetData(t *testing.T) {
 	device2TokenID := uint32(654321)
 	ctx := context.Background()
 	now := time.Now()
-
-	eventIdx := nameindexer.CloudEventIndex{
-		Subject: cloudevent.NFTDID{
-			ChainID:         153,
-			ContractAddress: contractAddr,
-			TokenID:         device1TokenID,
-		},
+	eventDID := cloudevent.NFTDID{
+		ChainID:         153,
+		ContractAddress: contractAddr,
+		TokenID:         device1TokenID,
+	}
+	eventIdx := nameindexer.Index{
+		Subject:   nameindexer.EncodeNFTDID(eventDID),
 		Timestamp: now.Add(-4 * time.Hour),
-		Producer: cloudevent.NFTDID{
+		Producer: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
-		},
-		PrimaryFiller:   "0S",
-		Source:          source1,
+		}),
+		PrimaryFiller:   nameindexer.CloudTypeToFiller(cloudevent.TypeStatus),
+		Source:          source1.Hex(),
 		DataType:        dataType,
 		SecondaryFiller: "00",
 	}
@@ -316,15 +317,15 @@ func TestGetData(t *testing.T) {
 		{
 			name: "valid data with address",
 			opts: indexrepo.CloudEventSearchOptions{
-				DataType: &dataType,
-				Subject:  &eventIdx.Subject,
+				DataVersion: &dataType,
+				Subject:     &eventDID,
 			},
 			expectedIndexKeys: []string{indexKey4, indexKey3, indexKey2, indexKey1},
 		},
 		{
 			name: "no records with address",
 			opts: indexrepo.CloudEventSearchOptions{
-				DataType: &dataType,
+				DataVersion: &dataType,
 				Subject: &cloudevent.NFTDID{
 					ChainID:         153,
 					ContractAddress: contractAddr,
@@ -337,24 +338,24 @@ func TestGetData(t *testing.T) {
 		{
 			name: "data within time range",
 			opts: indexrepo.CloudEventSearchOptions{
-				DataType: &dataType,
-				After:    now.Add(-3 * time.Hour),
-				Before:   now.Add(-1 * time.Minute),
+				DataVersion: &dataType,
+				After:       now.Add(-3 * time.Hour),
+				Before:      now.Add(-1 * time.Minute),
 			},
 			expectedIndexKeys: []string{indexKey4, indexKey3},
 		},
 		{
 			name: "data with primary filler",
 			opts: indexrepo.CloudEventSearchOptions{
-				DataType:      &dataType,
-				PrimaryFiller: ref("0S"),
+				DataVersion: &dataType,
+				Type:        ref(cloudevent.TypeStatus),
 			},
 			expectedIndexKeys: []string{indexKey4, indexKey2, indexKey1},
 		},
 		{
 			name: "data with secondary filler",
 			opts: indexrepo.CloudEventSearchOptions{
-				DataType:        &dataType,
+				DataVersion:     &dataType,
 				SecondaryFiller: ref("00"),
 			},
 			expectedIndexKeys: []string{indexKey3, indexKey2, indexKey1},

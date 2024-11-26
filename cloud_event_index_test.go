@@ -13,28 +13,28 @@ import (
 func TestEncodeIndex(t *testing.T) {
 	tests := []struct {
 		name      string
-		input     *CloudEventIndex
+		input     *Index
 		expected  string
 		expectErr bool
 	}{
 		{
 			name: "Valid index encoding with default fillers",
-			input: &CloudEventIndex{
+			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "",
 				DataType:      "Stat_2.0.0",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
-				},
+				}),
 			},
 			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "153000" + "MM" +
@@ -44,22 +44,22 @@ func TestEncodeIndex(t *testing.T) {
 		},
 		{
 			name: "Valid index encoding with custom fillers",
-			input: &CloudEventIndex{
+			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "XX",
 				DataType:      "Stat_2.0.0",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "99",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         153,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         3649,
-				},
+				}),
 			},
 			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "153000" + "XX" +
@@ -69,22 +69,22 @@ func TestEncodeIndex(t *testing.T) {
 		},
 		{
 			name: "DataType needs padding",
-			input: &CloudEventIndex{
+			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MM",
 				DataType:      "Stat",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
-				},
+				}),
 			},
 			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "153000" + "MM" +
@@ -94,22 +94,22 @@ func TestEncodeIndex(t *testing.T) {
 		},
 		{
 			name: "Invalid primary filler length",
-			input: &CloudEventIndex{
+			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MMM",
 				DataType:      "Stat_2.0.0",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
-				},
+				}),
 			},
 			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "153000" + "MM" +
@@ -119,22 +119,22 @@ func TestEncodeIndex(t *testing.T) {
 		},
 		{
 			name: "Invalid secondary filler length",
-			input: &CloudEventIndex{
+			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MM",
 				DataType:      "Stat_2.0.0",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "000",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
-				},
+				}),
 			},
 			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "153000" + "MM" +
@@ -144,22 +144,22 @@ func TestEncodeIndex(t *testing.T) {
 		},
 		{
 			name: "DataType too long",
-			input: &CloudEventIndex{
+			input: &Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "MM",
 				DataType:      "SuperDuperDataValidForEveryone/2.0.0.0.0.0",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
-				},
+				}),
 			},
 			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "153000" + "MM" +
@@ -169,22 +169,22 @@ func TestEncodeIndex(t *testing.T) {
 		},
 		{
 			name: "Invalid date part",
-			input: &CloudEventIndex{
+			input: &Index{
 				Timestamp:     time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC),
 				PrimaryFiller: "MM",
 				DataType:      "Stat",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "00",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
-				},
+				}),
 			},
 			expected:  "",
 			expectErr: true,
@@ -199,7 +199,7 @@ func TestEncodeIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := EncodeCloudEventIndex(tt.input)
+			result, err := EncodeIndex(tt.input)
 			if (err != nil) != tt.expectErr {
 				t.Fatalf("EncodeIndex() error = %v, expectErr %v", err, tt.expectErr)
 			}
@@ -214,7 +214,7 @@ func TestDecodeIndex(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
-		expected  CloudEventIndex
+		expected  Index
 		expectErr bool
 	}{
 		{
@@ -222,22 +222,22 @@ func TestDecodeIndex(t *testing.T) {
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"0000000f" + "759388" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
 				strings.Repeat("0", 15) + "8" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + strings.Repeat("0", 7) + "7",
-			expected: CloudEventIndex{
+			expected: Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "",
 				DataType:      "Stat_2.0.0",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         15,
-				},
+				}),
 				SecondaryFiller: "",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         8,
 					ContractAddress: common.HexToAddress("bA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         7,
-				},
+				}),
 			},
 			expectErr: false,
 		},
@@ -259,7 +259,7 @@ func TestDecodeIndex(t *testing.T) {
 			name: "Short index string",
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "MM" + "0000000000Stat_2",
-			expected:  CloudEventIndex{},
+			expected:  Index{},
 			expectErr: true,
 		},
 		{
@@ -267,22 +267,22 @@ func TestDecodeIndex(t *testing.T) {
 			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"00000001" + "759388" + "153000" + "MM" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 16) + "Stat" + "00" +
 				"0000000000000000000000000000000000000000000000000000000000000000",
-			expected: CloudEventIndex{
+			expected: Index{
 				Timestamp:     time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
 				PrimaryFiller: "",
 				DataType:      "Stat",
-				Subject: cloudevent.NFTDID{
+				Subject: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         1,
 					ContractAddress: common.HexToAddress("0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF"),
 					TokenID:         1,
-				},
+				}),
 				SecondaryFiller: "",
-				Source:          common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0"),
-				Producer: cloudevent.NFTDID{
+				Source:          EncodeAddress(common.HexToAddress("0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0")),
+				Producer: EncodeNFTDID(cloudevent.NFTDID{
 					ChainID:         0,
 					ContractAddress: common.HexToAddress(strings.Repeat("0", 40)),
 					TokenID:         0,
-				},
+				}),
 			},
 			expectErr: false,
 		},
@@ -318,7 +318,7 @@ func TestDecodeIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := DecodeCloudEventIndex(tt.input)
+			result, err := DecodeIndex(tt.input)
 			if tt.expectErr {
 				if err == nil {
 					t.Fatalf("DecodeIndex() error = nil, expected error")
@@ -416,88 +416,6 @@ func TestEncodeCloudEvent(t *testing.T) {
 			}
 			if result != tt.expected {
 				t.Fatalf("EncodeCloudEvent() result = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-func TestDecodeCloudEvent(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     string
-		expected  *cloudevent.CloudEventHeader
-		expectErr bool
-	}{
-		{
-			name: "Valid cloud event decoding",
-			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"00000001" + "759388" + "153000" + "MA" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
-				strings.Repeat("0", 15) + "8" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + strings.Repeat("0", 7) + "7",
-			expected: &cloudevent.CloudEventHeader{
-				SpecVersion: "1.0",
-				Subject:     "did:nft:1:0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF_1",
-				Time:        time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
-				Type:        cloudevent.TypeStatus,
-				DataVersion: "Stat_2.0.0",
-				Producer:    "did:nft:8:0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF_7",
-				Source:      "0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0",
-			},
-			expectErr: false,
-		},
-		{
-			name: "Invalid index string",
-			input: strings.Repeat("0", 15) + "1" + "invalid" +
-				"00000001" + "759388" + "153000" + "MA" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
-				strings.Repeat("0", 15) + "8" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + strings.Repeat("0", 7) + "7",
-			expected:  nil,
-			expectErr: true,
-		},
-		{
-			name: "Invalid source address",
-			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"00000001" + "759388" + "153000" + "MA" + "invalid" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
-				strings.Repeat("0", 15) + "8" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + strings.Repeat("0", 7) + "7",
-			expected:  nil,
-			expectErr: true,
-		},
-		{
-			name: "Invalid primary filler",
-			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"00000001" + "759388" + "153000" + "XX" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
-				strings.Repeat("0", 15) + "8" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + strings.Repeat("0", 7) + "7",
-			expected: &cloudevent.CloudEventHeader{
-				SpecVersion: "1.0",
-				Subject:     "did:nft:1:0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF_1",
-				Time:        time.Date(2024, 6, 11, 15, 30, 0, 0, time.UTC),
-				Type:        cloudevent.TypeUnknown,
-				DataVersion: "Stat_2.0.0",
-				Producer:    "did:nft:8:0xbA5738a18d83D41847dfFbDC6101d37C69c9B0cF_7",
-				Source:      "0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0",
-			},
-			expectErr: false,
-		},
-		{
-			name: "Invalid timestamp",
-			input: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
-				"99999999" + "123426" + "153000" + "MA" + "6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" + "00" +
-				strings.Repeat("0", 15) + "8" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" + strings.Repeat("0", 7) + "7",
-			expected:  nil,
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, secondaryFiller, err := DecodeCloudEvent(tt.input)
-			if (err != nil) != tt.expectErr {
-				t.Fatalf("DecodeCloudEvent() error = %v, expectErr %v", err, tt.expectErr)
-			}
-			if !tt.expectErr && result != nil {
-				if !reflect.DeepEqual(result, tt.expected) {
-					t.Fatalf("DecodeCloudEvent() result = %+v, expected %+v", result, tt.expected)
-				}
-				if secondaryFiller != "" {
-					t.Fatalf("DecodeCloudEvent() secondaryFiller = %v, expected %v", secondaryFiller, "00")
-				}
 			}
 		})
 	}
