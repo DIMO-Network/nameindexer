@@ -144,11 +144,11 @@ func (s *Service) ListMetadataFromRaw(ctx context.Context, limit int, opts RawSe
 
 // ListCloudEvents fetches and returns the cloud events that match the given options.
 func (s *Service) ListCloudEvents(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
-	return s.ListCloudEventsRaw(ctx, bucketName, limit, opts.ToRawSearchOptions())
+	return s.ListCloudEventsFromRaw(ctx, bucketName, limit, opts.ToRawSearchOptions())
 }
 
-// ListCloudEventsRaw fetches and returns the cloud events that match the given options.
-func (s *Service) ListCloudEventsRaw(ctx context.Context, bucketName string, limit int, opts RawSearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
+// ListCloudEventsFromRaw fetches and returns the cloud events that match the given options.
+func (s *Service) ListCloudEventsFromRaw(ctx context.Context, bucketName string, limit int, opts RawSearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
 	events, err := s.ListMetadataFromRaw(ctx, limit, opts)
 	if err != nil {
 		return nil, err
