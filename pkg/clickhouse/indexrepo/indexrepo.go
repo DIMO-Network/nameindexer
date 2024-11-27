@@ -229,8 +229,8 @@ func (s *Service) GetRawObjectromIndex(ctx context.Context, indexKey, bucketName
 }
 
 // StoreCloudEvent stores the given cloud event in S3 and ClickHouse.
-func (s *Service) StoreCloudEvent(ctx context.Context, eventHdr *cloudevent.CloudEventHeader, secondaryFiller string, bucketName string, data []byte) error {
-	index, err := nameindexer.CloudEventToIndex(eventHdr, secondaryFiller)
+func (s *Service) StoreCloudEvent(ctx context.Context, eventHdr *cloudevent.CloudEventHeader, bucketName string, data []byte) error {
+	index, err := nameindexer.CloudEventToIndex(eventHdr)
 	if err != nil {
 		return fmt.Errorf("failed to convert cloud event to index: %w", err)
 	}
