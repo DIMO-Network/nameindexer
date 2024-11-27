@@ -103,10 +103,10 @@ func TestGetLatestIndexKey(t *testing.T) {
 	indexKey2 := insertTestData(t, ctx, conn, eventIdx2)
 
 	tests := []struct {
-		name             string
-		subject          cloudevent.NFTDID
-		expectedIndexKey string
-		expectedError    bool
+		name          string
+		subject       cloudevent.NFTDID
+		expectedKey   string
+		expectedError bool
 	}{
 		{
 			name: "valid latest object",
@@ -115,7 +115,7 @@ func TestGetLatestIndexKey(t *testing.T) {
 				ContractAddress: contractAddr,
 				TokenID:         device1TokenID,
 			},
-			expectedIndexKey: indexKey2,
+			expectedKey: indexKey2,
 		},
 		{
 			name: "no records",
@@ -136,13 +136,13 @@ func TestGetLatestIndexKey(t *testing.T) {
 				DataVersion: &dataType,
 				Subject:     &tt.subject,
 			}
-			indexkey, err := indexService.GetLatestCloudEventIndexKey(context.Background(), opts)
+			metadata, err := indexService.GetLatestMetadata(context.Background(), opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedIndexKey, indexkey)
+				require.Equal(t, tt.expectedKey, metadata.Key)
 			}
 		})
 	}
@@ -213,7 +213,7 @@ func TestGetDataFromIndex(t *testing.T) {
 				DataVersion: &dataType,
 				Subject:     &tt.subject,
 			}
-			content, err := indexService.GetLatestCloudEventData(context.Background(), "test-bucket", opts)
+			content, err := indexService.GetLatestCloudEvent(context.Background(), "test-bucket", opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -261,12 +261,12 @@ func TestStoreObject(t *testing.T) {
 		DataVersion: &dataType,
 		Subject:     &did,
 	}
-	indexkey, err := indexService.GetLatestCloudEventIndexKey(ctx, opts)
+	metadata, err := indexService.GetLatestMetadata(ctx, opts)
 	require.NoError(t, err)
 	idx := nameindexer.CloudEventToPartialIndex(&event.CloudEventHeader)
 	expectedIndexKey, err := nameindexer.EncodeIndex(&idx)
 	require.NoError(t, err)
-	require.Equal(t, expectedIndexKey, indexkey)
+	require.Equal(t, expectedIndexKey, metadata.Key)
 }
 
 // TestGetData tests the GetData function with different SearchOptions combinations.
@@ -378,7 +378,7 @@ func TestGetData(t *testing.T) {
 					}, nil
 				})
 			}
-			data, err := indexService.GetCloudEventObjects(context.Background(), "test-bucket", 10, tt.opts)
+			data, err := indexService.ListCloudEvents(context.Background(), "test-bucket", 10, tt.opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
