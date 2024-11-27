@@ -47,15 +47,16 @@ func TestMigration(t *testing.T) {
 
 	err = migrations.RunGoose(ctx, []string{"up", "-v"}, db)
 	require.NoError(t, err, "Failed to run migration")
-	newIdx := nameindexer.CloudEventIndex{
-		Subject:         cloudevent.NFTDID{ChainID: 2, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3},
-		Timestamp:       time.Now(),
-		PrimaryFiller:   "0S",
-		Source:          common.HexToAddress("0xb57d6d57fca59d0517038c968a1b831b071fa679"),
-		DataType:        "Stat/2.0.0",
-		SecondaryFiller: "00",
-		Producer:        cloudevent.NFTDID{ChainID: 3, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3},
+	hdr := cloudevent.CloudEventHeader{
+		Subject:     cloudevent.NFTDID{ChainID: 2, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3}.String(),
+		Time:        time.Now(),
+		Type:        cloudevent.TypeStatus,
+		Source:      common.HexToAddress("0xb57d6d57fca59d0517038c968a1b831b071fa679").String(),
+		DataVersion: "Stat/2.0.0",
+		Producer:    cloudevent.NFTDID{ChainID: 3, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3}.String(),
 	}
+	newIdx, err := nameindexer.CloudEventToIndex(&hdr, "00")
+	require.NoError(t, err, "Failed to convert cloud event to index")
 	err = insertIndex(conn, &newIdx)
 	require.NoError(t, err, "Failed to insert new index")
 
@@ -102,8 +103,8 @@ func insesrtOldIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
 	return nil
 }
 
-func insertIndex(conn clickhouse.Conn, index *nameindexer.CloudEventIndex) error {
-	values, err := localch.CloudEventIndexToSlice(index)
+func insertIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
+	values, err := localch.IndexToSlice(index)
 	if err != nil {
 		return fmt.Errorf("failed to convert index to slice: %w", err)
 	}

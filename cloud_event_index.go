@@ -3,6 +3,7 @@ package nameindexer
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DIMO-Network/model-garage/pkg/cloudevent"
@@ -20,48 +21,10 @@ const (
 	FillerUnknown = "U"
 )
 
-// CloudEventIndex represents the components of a decoded index.
-type CloudEventIndex struct {
-	// Subject is the subject of the data represented by the index.
-	Subject cloudevent.NFTDID `json:"subject"`
-	// Timestamp is the full timestamp used for date and time.
-	Timestamp time.Time `json:"timestamp"`
-	// PrimaryFiller is the filler value between the date and data type, typically "MM". If empty, defaults to "MM".
-	PrimaryFiller string `json:"primaryFiller"`
-	// DataType is the type of data, left-padded with ! or truncated to 30 characters.
-	DataType string `json:"dataType"`
-	// Source is the source of the data represented by the index.
-	Source common.Address `json:"source"`
-	// Producer is the producer of the data represented by the index.
-	Producer cloudevent.NFTDID `json:"producer"`
-	// SecondaryFiller is the filler value between the subject and time, typically "00". If empty, defaults to "00".
-	SecondaryFiller string `json:"secondaryFiller"`
-	// Optional data for additional metadata
-	Optional string `json:"optional"`
-}
-
-// ToIndex converts a CloudEventIndex to an Index.
-func (c CloudEventIndex) ToIndex() (Index, error) {
-	subject := EncodeNFTDID(c.Subject)
-	producer := EncodeNFTDID(c.Producer)
-	unPrefixedSource := EncodeAddress(c.Source)
-
-	return Index{
-		Subject:         subject,
-		Timestamp:       c.Timestamp,
-		PrimaryFiller:   c.PrimaryFiller,
-		Source:          unPrefixedSource,
-		DataType:        c.DataType,
-		Producer:        producer,
-		SecondaryFiller: c.SecondaryFiller,
-		Optional:        c.Optional,
-	}, nil
-
-}
-
 // CloudTypeToFiller converts a cloud event type to a filler string.
-func CloudTypeToFiller(status string) string {
-	switch status {
+func CloudTypeToFiller(eventTypes string) string {
+	firstStatus := strings.Split(eventTypes, ",")[0]
+	switch firstStatus {
 	case cloudevent.TypeStatus:
 		return FillerStatus
 	case cloudevent.TypeFingerprint:
@@ -89,38 +52,38 @@ func FillerToCloudType(filler string) string {
 
 // EncodeCloudEvent encodes a CloudEventHeader into a encoded indexable string.
 func EncodeCloudEvent(cloudEvent *cloudevent.CloudEventHeader, secondaryFiller string) (string, error) {
-	index, err := CloudEventToCloudIndex(cloudEvent, secondaryFiller)
+	index, err := CloudEventToIndex(cloudEvent, secondaryFiller)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert cloud event to index: %w", err)
 	}
-	return EncodeCloudEventIndex(index)
+	return EncodeIndex(&index)
 }
 
-// CloudEventToCloudIndex converts a CloudEventHeader to a CloudEventIndex.
-func CloudEventToCloudIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFiller string) (*CloudEventIndex, error) {
+// CloudEventToIndex converts a CloudEventHeader to a CloudEventIndex.
+func CloudEventToIndex(cloudEvent *cloudevent.CloudEventHeader, secondaryFiller string) (Index, error) {
 	subjectDID, err := cloudevent.DecodeNFTDID(cloudEvent.Subject)
 	if err != nil {
-		return nil, fmt.Errorf("subject is not a valid NFT DID: %w", err)
+		return Index{}, fmt.Errorf("subject is not a valid NFT DID: %w", err)
 	}
 	producerDID, err := cloudevent.DecodeNFTDID(cloudEvent.Producer)
 	if err != nil {
-		return nil, fmt.Errorf("producer is not a valid NFT DID: %w", err)
+		return Index{}, fmt.Errorf("producer is not a valid NFT DID: %w", err)
 	}
 	sourceAddr, err := DecodeAddress(cloudEvent.Source)
 	if err != nil {
-		return nil, fmt.Errorf("source is not valid: %w", err)
+		return Index{}, fmt.Errorf("source is not valid: %w", err)
 	}
 	if err := ValidateDate(cloudEvent.Time); err != nil {
-		return nil, err
+		return Index{}, err
 	}
 
-	index := &CloudEventIndex{
-		Subject:         subjectDID,
+	index := Index{
+		Subject:         EncodeNFTDID(subjectDID),
 		Timestamp:       cloudEvent.Time,
 		PrimaryFiller:   CloudTypeToFiller(cloudEvent.Type),
-		Source:          sourceAddr,
+		Source:          EncodeAddress(sourceAddr),
 		DataType:        cloudEvent.DataVersion,
-		Producer:        producerDID,
+		Producer:        EncodeNFTDID(producerDID),
 		SecondaryFiller: secondaryFiller,
 	}
 	return index, nil
@@ -162,70 +125,6 @@ func CloudEventToPartialIndex(cloudHdr *cloudevent.CloudEventHeader, secondaryFi
 		Producer:        producer,
 		SecondaryFiller: secondaryFiller,
 	}
-}
-
-// EncodeCloudEventIndex encodes a CloudEventIndex into a string.
-func EncodeCloudEventIndex(cloudIndex *CloudEventIndex) (string, error) {
-	if cloudIndex == nil {
-		return "", InvalidError("index is nil")
-	}
-	index, err := cloudIndex.ToIndex()
-	if err != nil {
-		return "", fmt.Errorf("failed to convert cloud event index to index: %w", err)
-	}
-	return EncodeIndex(&index)
-}
-
-// DecodeCloudEvent decodes an encoded index string into a CloudEventHeader.
-func DecodeCloudEvent(index string) (*cloudevent.CloudEventHeader, string, error) {
-	decodedIndex, err := DecodeCloudEventIndex(index)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to decode index: %w", err)
-	}
-	cloudEvent := &cloudevent.CloudEventHeader{
-		SpecVersion: "1.0",
-		Subject:     decodedIndex.Subject.String(),
-		Time:        decodedIndex.Timestamp,
-		Type:        FillerToCloudType(decodedIndex.PrimaryFiller),
-		DataVersion: decodedIndex.DataType,
-		Producer:    decodedIndex.Producer.String(),
-		Source:      decodedIndex.Source.Hex(),
-	}
-	return cloudEvent, decodedIndex.SecondaryFiller, nil
-}
-
-// DecodeCloudEventIndex decodes an index string into a cloudeventIndex
-func DecodeCloudEventIndex(encodedIndex string) (*CloudEventIndex, error) {
-	index, err := DecodeIndex(encodedIndex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode index: %w", err)
-	}
-
-	if !common.IsHexAddress(index.Source) {
-		return nil, InvalidError("source is not a valid address")
-	}
-	source := common.HexToAddress(index.Source)
-	subject, err := DecodeNFTDIDIndex(index.Subject)
-	if err != nil {
-		return nil, fmt.Errorf("subject part: %w", err)
-	}
-	producer, err := DecodeNFTDIDIndex(index.Producer)
-	if err != nil {
-		return nil, fmt.Errorf("producer part: %w", err)
-	}
-
-	decodedIndex := &CloudEventIndex{
-		Subject:         subject,
-		Timestamp:       index.Timestamp,
-		PrimaryFiller:   index.PrimaryFiller,
-		Source:          source,
-		DataType:        index.DataType,
-		Producer:        producer,
-		SecondaryFiller: index.SecondaryFiller,
-		Optional:        index.Optional,
-	}
-
-	return decodedIndex, nil
 }
 
 // EncodeAddress encodes an ethereum address without the 0x prefix.
