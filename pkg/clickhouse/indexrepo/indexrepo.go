@@ -43,8 +43,8 @@ func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 }
 
 // GetLatestCloudEventIndexKey returns the latest index key for the given subject and data type.
-func (s *Service) GetLatestCloudEventIndexKey(ctx context.Context, opts CloudEventSearchOptions) (string, error) {
-	searchOpts, err := opts.ToSearchOptions()
+func (s *Service) GetLatestCloudEventIndexKey(ctx context.Context, opts SearchOptions) (string, error) {
+	searchOpts, err := opts.ToRawSearchOptions()
 	if err != nil {
 		return "", fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
@@ -52,7 +52,7 @@ func (s *Service) GetLatestCloudEventIndexKey(ctx context.Context, opts CloudEve
 }
 
 // GetLatestIndexKey returns the latest index key for the given subject and data type.
-func (s *Service) GetLatestIndexKey(ctx context.Context, opts SearchOptions) (string, error) {
+func (s *Service) GetLatestIndexKey(ctx context.Context, opts RawSearchOptions) (string, error) {
 	mods := []qm.QueryMod{
 		qm.Select("argMax(" + chindexer.IndexKeyColumn + ", " + chindexer.TimestampColumn + ") AS index_key"),
 		qm.From(chindexer.TableName),
@@ -75,8 +75,8 @@ func (s *Service) GetLatestIndexKey(ctx context.Context, opts SearchOptions) (st
 }
 
 // GetCloudEventIndexKeys fetches and returns the index keys for the given options.
-func (s *Service) GetCloudEventIndexKeys(ctx context.Context, limit int, opts CloudEventSearchOptions) ([]string, error) {
-	searchOpts, err := opts.ToSearchOptions()
+func (s *Service) GetCloudEventIndexKeys(ctx context.Context, limit int, opts SearchOptions) ([]string, error) {
+	searchOpts, err := opts.ToRawSearchOptions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
@@ -84,7 +84,7 @@ func (s *Service) GetCloudEventIndexKeys(ctx context.Context, limit int, opts Cl
 }
 
 // GetIndexKeys fetches and returns the index keys for the given options.
-func (s *Service) GetIndexKeys(ctx context.Context, limit int, opts SearchOptions) ([]string, error) {
+func (s *Service) GetIndexKeys(ctx context.Context, limit int, opts RawSearchOptions) ([]string, error) {
 	order := " DESC"
 	if opts.TimestampAsc {
 		order = " ASC"
@@ -141,8 +141,8 @@ func (s *Service) GetObjectsFromIndexKeys(ctx context.Context, indexKeys []strin
 }
 
 // GetCloudEventObjects fetches and returns the data for the given subject.
-func (s *Service) GetCloudEventObjects(ctx context.Context, bucketName string, limit int, opts CloudEventSearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
-	searchOpts, err := opts.ToSearchOptions()
+func (s *Service) GetCloudEventObjects(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
+	searchOpts, err := opts.ToRawSearchOptions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
@@ -150,7 +150,7 @@ func (s *Service) GetCloudEventObjects(ctx context.Context, bucketName string, l
 }
 
 // GetObjects fetches and returns the data for the given subject. The data is returned as a map with the indexKey as the key.
-func (s *Service) GetObjects(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
+func (s *Service) GetObjects(ctx context.Context, bucketName string, limit int, opts RawSearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
 	indexKeys, err := s.GetIndexKeys(ctx, limit, opts)
 	if err != nil {
 		return nil, err
@@ -165,8 +165,8 @@ func (s *Service) GetObjects(ctx context.Context, bucketName string, limit int, 
 }
 
 // GetLatestCloudEventData fetches and returns the latest data for the given subject.
-func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string, opts CloudEventSearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
-	searchOpts, err := opts.ToSearchOptions()
+func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string, opts SearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
+	searchOpts, err := opts.ToRawSearchOptions()
 	if err != nil {
 		return cloudevent.CloudEvent[json.RawMessage]{}, fmt.Errorf("failed to convert cloud event search options: %w", err)
 	}
@@ -174,7 +174,7 @@ func (s *Service) GetLatestCloudEventData(ctx context.Context, bucketName string
 }
 
 // GetLatestObject fetches and returns the latest data for the given subject.
-func (s *Service) GetLatestObject(ctx context.Context, bucketName string, opts SearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
+func (s *Service) GetLatestObject(ctx context.Context, bucketName string, opts RawSearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
 	indexKey, err := s.GetLatestIndexKey(ctx, opts)
 	if err != nil {
 		return cloudevent.CloudEvent[json.RawMessage]{}, err
@@ -280,7 +280,7 @@ func (s *Service) storeObject(ctx context.Context, index *nameindexer.Index, buc
 	return nil
 }
 
-type SearchOptions struct {
+type RawSearchOptions struct {
 	// After if set only objects after this time are returned.
 	After time.Time
 	// Before if set only objects before this time are returned.
@@ -288,14 +288,12 @@ type SearchOptions struct {
 	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
 	// This option is not applied for the latest query.
 	TimestampAsc bool
-	// PrimaryFiller if set only objects for this primary filler are returned.
-	PrimaryFiller *string
-	// DataType if set only objects for this data type are returned.
-	DataType *string
+	// Type if not empty only objects with this type are returned.
+	Type *string
+	// DataVersion if set only objects for this data type are returned.
+	DataVersion *string
 	// Subject if set only objects for this subject are returned.
 	Subject *string
-	// SecondaryFiller if set only objects for this secondary filler are returned.
-	SecondaryFiller *string
 	// Source is the party responsible for creating the data.
 	Source *string
 	// Producer is the specific source entity that created the data.
@@ -304,7 +302,7 @@ type SearchOptions struct {
 	Optional *string
 }
 
-type CloudEventSearchOptions struct {
+type SearchOptions struct {
 	// After if set only objects after this time are returned.
 	After time.Time
 	// Before if set only objects before this time are returned.
@@ -312,14 +310,12 @@ type CloudEventSearchOptions struct {
 	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
 	// This option is not applied for the latest objects query.
 	TimestampAsc bool
-	// Type if not empty cloudevents for any of these types are returned.
+	// Type if not empty cloudevents for this type are returned.
 	Type *string
 	// DataType if set only objects with a matching data version
 	DataVersion *string
 	// Subject if set only objects for this subject are returned.
 	Subject *cloudevent.NFTDID
-	// SecondaryFiller if set only objects for this secondary filler are returned.
-	SecondaryFiller *string
 	// Source is the party responsible for creating the data.
 	Source *common.Address
 	// Producer is the specific source entity that created the data.
@@ -328,20 +324,14 @@ type CloudEventSearchOptions struct {
 	Optional *string
 }
 
-func (c *CloudEventSearchOptions) ToSearchOptions() (SearchOptions, error) {
-	var filler *string
-	if c.Type != nil {
-		fillerVal := nameindexer.CloudTypeToFiller(*c.Type)
-		filler = &fillerVal
-	}
-	opts := SearchOptions{
-		After:           c.After,
-		Before:          c.Before,
-		TimestampAsc:    c.TimestampAsc,
-		PrimaryFiller:   filler,
-		DataType:        c.DataVersion,
-		SecondaryFiller: c.SecondaryFiller,
-		Optional:        c.Optional,
+func (c *SearchOptions) ToRawSearchOptions() (RawSearchOptions, error) {
+	opts := RawSearchOptions{
+		After:        c.After,
+		Before:       c.Before,
+		TimestampAsc: c.TimestampAsc,
+		Type:         c.Type,
+		DataVersion:  c.DataVersion,
+		Optional:     c.Optional,
 	}
 	if c.Subject != nil {
 		subject := nameindexer.EncodeNFTDID(*c.Subject)
@@ -358,7 +348,7 @@ func (c *CloudEventSearchOptions) ToSearchOptions() (SearchOptions, error) {
 	return opts, nil
 }
 
-func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
+func (o *RawSearchOptions) QueryMods() ([]qm.QueryMod, error) {
 	var mods []qm.QueryMod
 	if !o.After.IsZero() {
 		mods = append(mods, qm.Where(chindexer.TimestampColumn+" > ?", o.After))
@@ -366,21 +356,18 @@ func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
 	if !o.Before.IsZero() {
 		mods = append(mods, qm.Where(chindexer.TimestampColumn+" < ?", o.Before))
 	}
-	if o.PrimaryFiller != nil {
-		primaryFiller := nameindexer.EncodePrimaryFiller(*o.PrimaryFiller)
+	if o.Type != nil {
+		filler := nameindexer.CloudTypeToFiller(*o.Type)
+		primaryFiller := nameindexer.EncodePrimaryFiller(filler)
 		mods = append(mods, qm.Where(chindexer.PrimaryFillerColumn+" = ?", primaryFiller))
 	}
-	if o.DataType != nil {
-		paddedDataType := nameindexer.EncodeDataType(*o.DataType)
+	if o.DataVersion != nil {
+		paddedDataType := nameindexer.EncodeDataType(*o.DataVersion)
 		mods = append(mods, qm.Where(chindexer.DataTypeColumn+" = ?", paddedDataType))
 	}
 	if o.Subject != nil {
 		subject := nameindexer.EncodeSubject(*o.Subject)
 		mods = append(mods, qm.Where(chindexer.SubjectColumn+" = ?", subject))
-	}
-	if o.SecondaryFiller != nil {
-		secondaryFiller := nameindexer.EncodeSecondaryFiller(*o.SecondaryFiller)
-		mods = append(mods, qm.Where(chindexer.SecondaryFillerColumn+" = ?", secondaryFiller))
 	}
 	if o.Source != nil {
 		source := nameindexer.EncodeSource(*o.Source)
