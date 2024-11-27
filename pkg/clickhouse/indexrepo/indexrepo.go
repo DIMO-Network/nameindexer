@@ -229,16 +229,30 @@ func (s *Service) GetRawObjectromIndex(ctx context.Context, indexKey, bucketName
 }
 
 // StoreCloudEvent stores the given cloud event in S3 and ClickHouse.
-func (s *Service) StoreCloudEvent(ctx context.Context, eventHdr *cloudevent.CloudEventHeader, bucketName string, data []byte) error {
-	index, err := nameindexer.CloudEventToIndex(eventHdr)
+func (s *Service) StoreCloudEvent(ctx context.Context, bucketName string, event cloudevent.CloudEvent[json.RawMessage]) error {
+	index, err := nameindexer.CloudEventToIndex(&event.CloudEventHeader)
 	if err != nil {
 		return fmt.Errorf("failed to convert cloud event to index: %w", err)
 	}
-	return s.StoreObject(ctx, &index, bucketName, data)
+	data, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cloud event: %w", err)
+	}
+	return s.storeObject(ctx, &index, bucketName, data)
+}
+
+// StorePartialCloudEvent stores the given cloud event in S3 and ClickHouse. Even if some parts are invalid.
+func (s *Service) StorePartialCloudEvent(ctx context.Context, bucketName string, event cloudevent.CloudEvent[json.RawMessage]) error {
+	index := nameindexer.CloudEventToPartialIndex(&event.CloudEventHeader)
+	data, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cloud event: %w", err)
+	}
+	return s.storeObject(ctx, &index, bucketName, data)
 }
 
 // StoreObject stores the given data in S3 with the given index.
-func (s *Service) StoreObject(ctx context.Context, index *nameindexer.Index, bucketName string, data []byte) error {
+func (s *Service) storeObject(ctx context.Context, index *nameindexer.Index, bucketName string, data []byte) error {
 	indexKey, err := nameindexer.EncodeIndex(index)
 	if err != nil {
 		return fmt.Errorf("failed to encode index: %w", err)

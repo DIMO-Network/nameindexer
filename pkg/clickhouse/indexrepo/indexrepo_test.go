@@ -4,6 +4,7 @@ package indexrepo_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"testing"
@@ -243,13 +244,16 @@ func TestStoreObject(t *testing.T) {
 		ContractAddress: randAddress(),
 		TokenID:         123456,
 	}
-	index := nameindexer.Index{
-		Subject:   nameindexer.EncodeNFTDID(did),
-		DataType:  dataType,
-		Timestamp: time.Now(),
-	}
 
-	err = indexService.StoreObject(ctx, &index, "test-bucket", content)
+	event := cloudevent.CloudEvent[json.RawMessage]{
+		CloudEventHeader: cloudevent.CloudEventHeader{
+			Subject:     did.String(),
+			Time:        time.Now(),
+			DataVersion: dataType,
+		},
+		Data: content,
+	}
+	err = indexService.StorePartialCloudEvent(ctx, "test-bucket", event)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
@@ -259,7 +263,8 @@ func TestStoreObject(t *testing.T) {
 	}
 	indexkey, err := indexService.GetLatestCloudEventIndexKey(ctx, opts)
 	require.NoError(t, err)
-	expectedIndexKey, err := nameindexer.EncodeIndex(&index)
+	idx := nameindexer.CloudEventToPartialIndex(&event.CloudEventHeader)
+	expectedIndexKey, err := nameindexer.EncodeIndex(&idx)
 	require.NoError(t, err)
 	require.Equal(t, expectedIndexKey, indexkey)
 }
