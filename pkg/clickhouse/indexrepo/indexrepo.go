@@ -48,7 +48,7 @@ func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 }
 
 // getLatestKeyFromRaw returns the latest key for the given subject and data type.
-func (s *Service) getLatestKeyFromRaw(ctx context.Context, opts RawSearchOptions) (string, error) {
+func (s *Service) getLatestKeyFromRaw(ctx context.Context, opts *RawSearchOptions) (string, error) {
 	mods := []qm.QueryMod{
 		qm.Select("argMax(" + chindexer.IndexKeyColumn + ", " + chindexer.TimestampColumn + ") AS index_key"),
 		qm.From(chindexer.TableName),
@@ -71,12 +71,12 @@ func (s *Service) getLatestKeyFromRaw(ctx context.Context, opts RawSearchOptions
 }
 
 // GetLatestMetadata returns the cloud event metadata for the latest event that matches the given options.
-func (s *Service) GetLatestMetadata(ctx context.Context, opts SearchOptions) (CloudEventMetadata, error) {
+func (s *Service) GetLatestMetadata(ctx context.Context, opts *SearchOptions) (CloudEventMetadata, error) {
 	return s.GetLatestMetadataFromRaw(ctx, opts.ToRawSearchOptions())
 }
 
 // GetLatestMetadataFromRaw returns the latest cloud event metadata that matches the given options.
-func (s *Service) GetLatestMetadataFromRaw(ctx context.Context, opts RawSearchOptions) (CloudEventMetadata, error) {
+func (s *Service) GetLatestMetadataFromRaw(ctx context.Context, opts *RawSearchOptions) (CloudEventMetadata, error) {
 	opts.TimestampAsc = false
 	events, err := s.ListMetadataFromRaw(ctx, 1, opts)
 	if err != nil {
@@ -86,14 +86,14 @@ func (s *Service) GetLatestMetadataFromRaw(ctx context.Context, opts RawSearchOp
 }
 
 // ListMetadata fetches and returns a list of metadata for cloud events that match the given options.
-func (s *Service) ListMetadata(ctx context.Context, limit int, opts SearchOptions) ([]CloudEventMetadata, error) {
+func (s *Service) ListMetadata(ctx context.Context, limit int, opts *SearchOptions) ([]CloudEventMetadata, error) {
 	return s.ListMetadataFromRaw(ctx, limit, opts.ToRawSearchOptions())
 }
 
 // ListMetadataFromRaw fetches and returns a list of metadata for cloud events that match the given options.
-func (s *Service) ListMetadataFromRaw(ctx context.Context, limit int, opts RawSearchOptions) ([]CloudEventMetadata, error) {
+func (s *Service) ListMetadataFromRaw(ctx context.Context, limit int, opts *RawSearchOptions) ([]CloudEventMetadata, error) {
 	order := " DESC"
-	if opts.TimestampAsc {
+	if opts != nil && opts.TimestampAsc {
 		order = " ASC"
 	}
 	mods := []qm.QueryMod{
@@ -143,12 +143,12 @@ func (s *Service) ListMetadataFromRaw(ctx context.Context, limit int, opts RawSe
 }
 
 // ListCloudEvents fetches and returns the cloud events that match the given options.
-func (s *Service) ListCloudEvents(ctx context.Context, bucketName string, limit int, opts SearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
+func (s *Service) ListCloudEvents(ctx context.Context, bucketName string, limit int, opts *SearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
 	return s.ListCloudEventsFromRaw(ctx, bucketName, limit, opts.ToRawSearchOptions())
 }
 
 // ListCloudEventsFromRaw fetches and returns the cloud events that match the given options.
-func (s *Service) ListCloudEventsFromRaw(ctx context.Context, bucketName string, limit int, opts RawSearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
+func (s *Service) ListCloudEventsFromRaw(ctx context.Context, bucketName string, limit int, opts *RawSearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
 	events, err := s.ListMetadataFromRaw(ctx, limit, opts)
 	if err != nil {
 		return nil, err
@@ -167,12 +167,12 @@ func (s *Service) ListCloudEventsFromRaw(ctx context.Context, bucketName string,
 }
 
 // GetLatestCloudEvent fetches and returns the latest cloud event that matches the given options.
-func (s *Service) GetLatestCloudEvent(ctx context.Context, bucketName string, opts SearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
+func (s *Service) GetLatestCloudEvent(ctx context.Context, bucketName string, opts *SearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
 	return s.GetLatestCloudEventFromRaw(ctx, bucketName, opts.ToRawSearchOptions())
 }
 
 // GetLatestCloudEventFromRaw fetches and returns the latest cloud event that matches the given options.
-func (s *Service) GetLatestCloudEventFromRaw(ctx context.Context, bucketName string, opts RawSearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
+func (s *Service) GetLatestCloudEventFromRaw(ctx context.Context, bucketName string, opts *RawSearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
 	key, err := s.getLatestKeyFromRaw(ctx, opts)
 	if err != nil {
 		return cloudevent.CloudEvent[json.RawMessage]{}, err
@@ -338,11 +338,11 @@ type SearchOptions struct {
 	Optional *string
 }
 
-func (c *SearchOptions) ToRawSearchOptions() RawSearchOptions {
+func (c *SearchOptions) ToRawSearchOptions() *RawSearchOptions {
 	if c == nil {
-		return RawSearchOptions{}
+		return nil
 	}
-	opts := RawSearchOptions{
+	opts := &RawSearchOptions{
 		After:        c.After,
 		Before:       c.Before,
 		TimestampAsc: c.TimestampAsc,
@@ -366,6 +366,9 @@ func (c *SearchOptions) ToRawSearchOptions() RawSearchOptions {
 }
 
 func (o *RawSearchOptions) QueryMods() ([]qm.QueryMod, error) {
+	if o == nil {
+		return nil, nil
+	}
 	var mods []qm.QueryMod
 	if !o.After.IsZero() {
 		mods = append(mods, qm.Where(chindexer.TimestampColumn+" > ?", o.After))

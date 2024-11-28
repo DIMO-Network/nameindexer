@@ -132,7 +132,7 @@ func TestGetLatestIndexKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := indexrepo.SearchOptions{
+			opts := &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject:     &tt.subject,
 			}
@@ -209,7 +209,7 @@ func TestGetDataFromIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := indexrepo.SearchOptions{
+			opts := &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject:     &tt.subject,
 			}
@@ -257,7 +257,7 @@ func TestStoreObject(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
-	opts := indexrepo.SearchOptions{
+	opts := &indexrepo.SearchOptions{
 		DataVersion: &dataType,
 		Subject:     &did,
 	}
@@ -315,13 +315,13 @@ func TestGetData(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		opts              indexrepo.SearchOptions
+		opts              *indexrepo.SearchOptions
 		expectedIndexKeys []string
 		expectedError     bool
 	}{
 		{
 			name: "valid data with address",
-			opts: indexrepo.SearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject:     &eventDID,
 			},
@@ -329,7 +329,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "no records with address",
-			opts: indexrepo.SearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject: &cloudevent.NFTDID{
 					ChainID:         153,
@@ -342,7 +342,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "data within time range",
-			opts: indexrepo.SearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				After:       now.Add(-3 * time.Hour),
 				Before:      now.Add(-1 * time.Minute),
@@ -351,11 +351,16 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "data with primary filler",
-			opts: indexrepo.SearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Type:        ref(cloudevent.TypeStatus),
 			},
 			expectedIndexKeys: []string{indexKey4, indexKey2, indexKey1},
+		},
+		{
+			name:              "data with nil options",
+			opts:              nil,
+			expectedIndexKeys: []string{indexKey4, indexKey3, indexKey2, indexKey1},
 		},
 	}
 
