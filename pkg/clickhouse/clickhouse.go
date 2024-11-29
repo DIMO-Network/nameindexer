@@ -45,11 +45,17 @@ const (
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.
 // The order of the elements in the array match the order of the columns in the table.
 func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
-	index := origIndex.WithEncodedParts()
-	indexKey, err := nameindexer.EncodeIndex(origIndex)
+	key, err := nameindexer.EncodeIndex(origIndex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode index: %w", err)
 	}
+	return IndexToSliceWithKey(origIndex, key), nil
+}
+
+// IndexToSliceWithKey converts a Inedx to an array of any for Clickhouse insertion.
+// This function allows to pass the key as a parameter instead of encoding it from the index.
+func IndexToSliceWithKey(origIndex *nameindexer.Index, key string) []any {
+	index := origIndex.WithEncodedParts()
 	return []any{
 		index.Subject,         // Vehicle or Device DID
 		index.Timestamp,       // Timestamp
@@ -59,6 +65,6 @@ func IndexToSlice(origIndex *nameindexer.Index) ([]any, error) {
 		index.SecondaryFiller, // Secondary filler
 		index.Producer,        // Producer DID
 		index.Optional,        // Optional
-		indexKey,
-	}, nil
+		key,                   // Index key
+	}
 }
