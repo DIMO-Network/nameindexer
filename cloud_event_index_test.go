@@ -354,7 +354,6 @@ func TestEncodeCloudEvent(t *testing.T) {
 				Producer:    "did:nft:0:0x0000000000000000000000000000000000000000_0",
 				Source:      "0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0",
 			},
-			secondaryFiller: "",
 			expected: strings.Repeat("0", 15) + "1" + "bA5738a18d83D41847dfFbDC6101d37C69c9B0cF" +
 				"0000000f" + "759388" + "153000" + "MA" +
 				"6C7cFb99AcfEFbA12DeD34387c11697061C196d0" + strings.Repeat(DataTypePadding, 10) + "Stat_2.0.0" +
@@ -372,9 +371,8 @@ func TestEncodeCloudEvent(t *testing.T) {
 				Producer:    "did:nft:0:0x0000000000000000000000000000000000000000_0",
 				Source:      "0x6C7cFb99AcfEFbA12DeD34387c11697061C196d0",
 			},
-			secondaryFiller: "00",
-			expected:        "",
-			expectErr:       true,
+			expected:  "",
+			expectErr: true,
 		},
 		{
 			name: "Invalid producer DID",
@@ -402,15 +400,14 @@ func TestEncodeCloudEvent(t *testing.T) {
 				Producer:    "did:nft:0:0x0000000000000000000000000000000000000000_0",
 				Source:      "invalid-address",
 			},
-			secondaryFiller: "00",
-			expected:        "",
-			expectErr:       true,
+			expected:  "",
+			expectErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := EncodeCloudEvent(tt.cloudEvent, tt.secondaryFiller)
+			result, err := EncodeCloudEvent(tt.cloudEvent)
 			if (err != nil) != tt.expectErr {
 				t.Fatalf("EncodeCloudEvent() error = %v, expectErr %v", err, tt.expectErr)
 			}

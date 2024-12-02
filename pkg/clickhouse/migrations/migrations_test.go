@@ -55,7 +55,7 @@ func TestMigration(t *testing.T) {
 		DataVersion: "Stat/2.0.0",
 		Producer:    cloudevent.NFTDID{ChainID: 3, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3}.String(),
 	}
-	newIdx, err := nameindexer.CloudEventToIndex(&hdr, "00")
+	newIdx, err := nameindexer.CloudEventToIndex(&hdr)
 	require.NoError(t, err, "Failed to convert cloud event to index")
 	err = insertIndex(conn, &newIdx)
 	require.NoError(t, err, "Failed to insert new index")

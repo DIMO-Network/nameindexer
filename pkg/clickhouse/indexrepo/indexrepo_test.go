@@ -4,6 +4,7 @@ package indexrepo_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"testing"
@@ -102,10 +103,10 @@ func TestGetLatestIndexKey(t *testing.T) {
 	indexKey2 := insertTestData(t, ctx, conn, eventIdx2)
 
 	tests := []struct {
-		name             string
-		subject          cloudevent.NFTDID
-		expectedIndexKey string
-		expectedError    bool
+		name          string
+		subject       cloudevent.NFTDID
+		expectedKey   string
+		expectedError bool
 	}{
 		{
 			name: "valid latest object",
@@ -114,7 +115,7 @@ func TestGetLatestIndexKey(t *testing.T) {
 				ContractAddress: contractAddr,
 				TokenID:         device1TokenID,
 			},
-			expectedIndexKey: indexKey2,
+			expectedKey: indexKey2,
 		},
 		{
 			name: "no records",
@@ -131,17 +132,17 @@ func TestGetLatestIndexKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := indexrepo.CloudEventSearchOptions{
+			opts := &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject:     &tt.subject,
 			}
-			indexkey, err := indexService.GetLatestCloudEventIndexKey(context.Background(), opts)
+			metadata, err := indexService.GetLatestMetadata(context.Background(), opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedIndexKey, indexkey)
+				require.Equal(t, tt.expectedKey, metadata.Key)
 			}
 		})
 	}
@@ -208,11 +209,11 @@ func TestGetDataFromIndex(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts := indexrepo.CloudEventSearchOptions{
+			opts := &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject:     &tt.subject,
 			}
-			content, err := indexService.GetLatestCloudEventData(context.Background(), "test-bucket", opts)
+			content, err := indexService.GetLatestCloudEvent(context.Background(), "test-bucket", opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -243,25 +244,29 @@ func TestStoreObject(t *testing.T) {
 		ContractAddress: randAddress(),
 		TokenID:         123456,
 	}
-	index := nameindexer.Index{
-		Subject:   nameindexer.EncodeNFTDID(did),
-		DataType:  dataType,
-		Timestamp: time.Now(),
-	}
 
-	err = indexService.StoreObject(ctx, &index, "test-bucket", content)
+	event := cloudevent.CloudEvent[json.RawMessage]{
+		CloudEventHeader: cloudevent.CloudEventHeader{
+			Subject:     did.String(),
+			Time:        time.Now(),
+			DataVersion: dataType,
+		},
+		Data: content,
+	}
+	err = indexService.StorePartialCloudEvent(ctx, "test-bucket", event)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
-	opts := indexrepo.CloudEventSearchOptions{
+	opts := &indexrepo.SearchOptions{
 		DataVersion: &dataType,
 		Subject:     &did,
 	}
-	indexkey, err := indexService.GetLatestCloudEventIndexKey(ctx, opts)
+	metadata, err := indexService.GetLatestMetadata(ctx, opts)
 	require.NoError(t, err)
-	expectedIndexKey, err := nameindexer.EncodeIndex(&index)
+	idx := nameindexer.CloudEventToPartialIndex(&event.CloudEventHeader)
+	expectedIndexKey, err := nameindexer.EncodeIndex(&idx)
 	require.NoError(t, err)
-	require.Equal(t, expectedIndexKey, indexkey)
+	require.Equal(t, expectedIndexKey, metadata.Key)
 }
 
 // TestGetData tests the GetData function with different SearchOptions combinations.
@@ -310,13 +315,13 @@ func TestGetData(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		opts              indexrepo.CloudEventSearchOptions
+		opts              *indexrepo.SearchOptions
 		expectedIndexKeys []string
 		expectedError     bool
 	}{
 		{
 			name: "valid data with address",
-			opts: indexrepo.CloudEventSearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject:     &eventDID,
 			},
@@ -324,7 +329,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "no records with address",
-			opts: indexrepo.CloudEventSearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Subject: &cloudevent.NFTDID{
 					ChainID:         153,
@@ -337,7 +342,7 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "data within time range",
-			opts: indexrepo.CloudEventSearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				After:       now.Add(-3 * time.Hour),
 				Before:      now.Add(-1 * time.Minute),
@@ -346,19 +351,16 @@ func TestGetData(t *testing.T) {
 		},
 		{
 			name: "data with primary filler",
-			opts: indexrepo.CloudEventSearchOptions{
+			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Type:        ref(cloudevent.TypeStatus),
 			},
 			expectedIndexKeys: []string{indexKey4, indexKey2, indexKey1},
 		},
 		{
-			name: "data with secondary filler",
-			opts: indexrepo.CloudEventSearchOptions{
-				DataVersion:     &dataType,
-				SecondaryFiller: ref("00"),
-			},
-			expectedIndexKeys: []string{indexKey3, indexKey2, indexKey1},
+			name:              "data with nil options",
+			opts:              nil,
+			expectedIndexKeys: []string{indexKey4, indexKey3, indexKey2, indexKey1},
 		},
 	}
 
@@ -381,7 +383,7 @@ func TestGetData(t *testing.T) {
 					}, nil
 				})
 			}
-			data, err := indexService.GetCloudEventObjects(context.Background(), "test-bucket", 10, tt.opts)
+			data, err := indexService.ListCloudEvents(context.Background(), "test-bucket", 10, tt.opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
