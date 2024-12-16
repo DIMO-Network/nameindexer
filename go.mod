@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.32.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.71.0
 	github.com/ethereum/go-ethereum v1.14.12
-	github.com/pressly/goose/v3 v3.23.0
+	github.com/pressly/goose/v3 v3.23.1
 	github.com/stretchr/testify v1.10.0
 	github.com/volatiletech/sqlboiler/v4 v4.17.1
 	go.uber.org/mock v0.5.0
