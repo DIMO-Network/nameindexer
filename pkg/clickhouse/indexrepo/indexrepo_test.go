@@ -136,7 +136,7 @@ func TestGetLatestIndexKey(t *testing.T) {
 				DataVersion: &dataType,
 				Subject:     &tt.subject,
 			}
-			metadata, err := indexService.GetLatestMetadata(context.Background(), opts)
+			metadata, err := indexService.GetLatestIndex(context.Background(), opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
@@ -261,7 +261,7 @@ func TestStoreObject(t *testing.T) {
 		DataVersion: &dataType,
 		Subject:     &did,
 	}
-	metadata, err := indexService.GetLatestMetadata(ctx, opts)
+	metadata, err := indexService.GetLatestIndex(ctx, opts)
 	require.NoError(t, err)
 	idx := nameindexer.CloudEventToPartialIndex(&event.CloudEventHeader)
 	expectedIndexKey, err := nameindexer.EncodeIndex(&idx)
