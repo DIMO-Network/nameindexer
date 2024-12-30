@@ -97,13 +97,17 @@ func (s *Service) ListMetadataFromRaw(ctx context.Context, limit int, opts *RawS
 		order = " ASC"
 	}
 	mods := []qm.QueryMod{
-		qm.Select(chindexer.SubjectColumn),
-		qm.Select(chindexer.TimestampColumn),
-		qm.Select(chindexer.PrimaryFillerColumn),
-		qm.Select(chindexer.SourceColumn),
-		qm.Select(chindexer.DataTypeColumn),
-		qm.Select(chindexer.ProducerColumn),
-		qm.Select(chindexer.IndexKeyColumn),
+		qm.Select(chindexer.SubjectColumn,
+			chindexer.TimestampColumn,
+			chindexer.TypeColumn,
+			chindexer.IDColumn,
+			chindexer.SourceColumn,
+			chindexer.ProducerColumn,
+			chindexer.DataContentTypeColumn,
+			chindexer.DataVersionColumn,
+			chindexer.ExtrasColumn,
+			chindexer.IndexKeyColumn,
+		),
 		qm.From(chindexer.TableName),
 		qm.OrderBy(chindexer.TimestampColumn + order),
 		qm.Limit(limit),
@@ -121,15 +125,20 @@ func (s *Service) ListMetadataFromRaw(ctx context.Context, limit int, opts *RawS
 	}
 
 	var cloudEvents []CloudEventMetadata
-	var filler string
+	var extras string
 	for rows.Next() {
 		var eventMeta CloudEventMetadata
-		err = rows.Scan(&eventMeta.Subject, &eventMeta.Time, &filler, &eventMeta.Source, &eventMeta.DataVersion, &eventMeta.Producer, &eventMeta.Key)
+		err = rows.Scan(&eventMeta.Subject, &eventMeta.Time, &eventMeta.Type, &eventMeta.ID, &eventMeta.Source, &eventMeta.Producer, &eventMeta.DataContentType, &eventMeta.DataVersion, &extras, &eventMeta.Key)
 		if err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("failed to scan cloud event: %w", err)
 		}
-		eventMeta.Type = nameindexer.FillerToCloudType(filler)
+		if extras != "" {
+			if err = json.Unmarshal([]byte(extras), &eventMeta.Extras); err != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("failed to unmarshal extras: %w", err)
+			}
+		}
 		cloudEvents = append(cloudEvents, eventMeta)
 	}
 	_ = rows.Close()
@@ -190,11 +199,16 @@ func (s *Service) GetLatestCloudEventFromRaw(ctx context.Context, bucketName str
 func (s *Service) ListCloudEventsFromKeys(ctx context.Context, keys []string, bucketName string) ([]cloudevent.CloudEvent[json.RawMessage], error) {
 	data := make([]cloudevent.CloudEvent[json.RawMessage], len(keys))
 	var err error
+	seen := make(map[string]struct{}, len(keys))
 	for i, key := range keys {
+		if _, ok := seen[key]; ok {
+			continue
+		}
 		data[i], err = s.GetCloudEventFromKey(ctx, key, bucketName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get data from key '%s': %w", key, err)
 		}
+		seen[key] = struct{}{}
 	}
 	return data, nil
 }
@@ -297,21 +311,27 @@ type RawSearchOptions struct {
 	After time.Time
 	// Before if set only objects before this time are returned.
 	Before time.Time
+	// Subject if set only objects for this subject are returned.
+	Subject *string
 	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
 	// This option is not applied for the latest query.
 	TimestampAsc bool
 	// Type if not empty only objects with this type are returned.
 	Type *string
-	// DataVersion if set only objects for this data type are returned.
-	DataVersion *string
-	// Subject if set only objects for this subject are returned.
-	Subject *string
+	// ID if set only objects with this ID are returned.
+	ID *string
 	// Source is the party responsible for creating the data.
 	Source *string
 	// Producer is the specific source entity that created the data.
 	Producer *string
-	// Optional is the optional data for additional metadata.
-	Optional *string
+	// DataVersion if set only objects for this data type are returned.
+	DataVersion *string
+	// DataContentType is the type of data of this object.
+	DataContentType *string
+	// Extras is the extra metadata for the cloud event.
+	Extras *string
+	// IndexKey is the key of the backing object for this cloud event.
+	IndexKey *string
 }
 
 // SearchOptions contains options for searching for indexed objects.
@@ -321,21 +341,27 @@ type SearchOptions struct {
 	After time.Time
 	// Before if set only objects before this time are returned.
 	Before time.Time
+	// Subject if set only objects for this subject are returned.
+	Subject *cloudevent.NFTDID
 	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
 	// This option is not applied for the latest objects query.
 	TimestampAsc bool
 	// Type if not empty cloudevents for this type are returned.
 	Type *string
-	// DataType if set only objects with a matching data version
-	DataVersion *string
-	// Subject if set only objects for this subject are returned.
-	Subject *cloudevent.NFTDID
+	// ID if set only objects with this ID are returned.
+	ID *string
 	// Source is the party responsible for creating the data.
 	Source *common.Address
 	// Producer is the specific source entity that created the data.
 	Producer *cloudevent.NFTDID
-	// Optional is the optional data for additional metadata.
-	Optional *string
+	// DataType if set only objects with a matching data version
+	DataVersion *string
+	// DataContentType is the type of data of this object.
+	DataContentType *string
+	// Extras is the optional data for additional metadata.
+	Extras *string
+	// IndexKey is the key of the backing object for this cloud event.
+	IndexKey *string
 }
 
 func (c *SearchOptions) ToRawSearchOptions() *RawSearchOptions {
@@ -343,12 +369,15 @@ func (c *SearchOptions) ToRawSearchOptions() *RawSearchOptions {
 		return nil
 	}
 	opts := &RawSearchOptions{
-		After:        c.After,
-		Before:       c.Before,
-		TimestampAsc: c.TimestampAsc,
-		Type:         c.Type,
-		DataVersion:  c.DataVersion,
-		Optional:     c.Optional,
+		After:           c.After,
+		Before:          c.Before,
+		TimestampAsc:    c.TimestampAsc,
+		Type:            c.Type,
+		ID:              c.ID,
+		DataVersion:     c.DataVersion,
+		DataContentType: c.DataContentType,
+		Extras:          c.Extras,
+		IndexKey:        c.IndexKey,
 	}
 	if c.Subject != nil {
 		subject := nameindexer.EncodeNFTDID(*c.Subject)
@@ -377,28 +406,22 @@ func (o *RawSearchOptions) QueryMods() ([]qm.QueryMod, error) {
 		mods = append(mods, qm.Where(chindexer.TimestampColumn+" < ?", o.Before))
 	}
 	if o.Type != nil {
-		filler := nameindexer.CloudTypeToFiller(*o.Type)
-		primaryFiller := nameindexer.EncodePrimaryFiller(filler)
-		mods = append(mods, qm.Where(chindexer.PrimaryFillerColumn+" = ?", primaryFiller))
+		mods = append(mods, qm.Where(chindexer.TypeColumn+" = ?", *o.Type))
 	}
 	if o.DataVersion != nil {
-		paddedDataType := nameindexer.EncodeDataType(*o.DataVersion)
-		mods = append(mods, qm.Where(chindexer.DataTypeColumn+" = ?", paddedDataType))
+		mods = append(mods, qm.Where(chindexer.DataVersionColumn+" = ?", *o.DataVersion))
 	}
 	if o.Subject != nil {
-		subject := nameindexer.EncodeSubject(*o.Subject)
-		mods = append(mods, qm.Where(chindexer.SubjectColumn+" = ?", subject))
+		mods = append(mods, qm.Where(chindexer.SubjectColumn+" = ?", *o.Subject))
 	}
 	if o.Source != nil {
-		source := nameindexer.EncodeSource(*o.Source)
-		mods = append(mods, qm.Where(chindexer.SourceColumn+" = ?", source))
+		mods = append(mods, qm.Where(chindexer.SourceColumn+" = ?", *o.Source))
 	}
 	if o.Producer != nil {
-		producer := nameindexer.EncodeProducer(*o.Producer)
-		mods = append(mods, qm.Where(chindexer.ProducerColumn+" = ?", producer))
+		mods = append(mods, qm.Where(chindexer.ProducerColumn+" = ?", *o.Producer))
 	}
-	if o.Optional != nil {
-		mods = append(mods, qm.Where(chindexer.OptionalColumn+" = ?", *o.Optional))
+	if o.Extras != nil {
+		mods = append(mods, qm.Where(chindexer.ExtrasColumn+" = ?", *o.Extras))
 	}
 	return mods, nil
 }
