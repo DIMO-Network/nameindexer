@@ -53,15 +53,12 @@ func setupClickHouseContainer(t *testing.T) *container.Container {
 }
 
 // insertTestData inserts test data into ClickHouse.
-func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, index *nameindexer.Index) string {
-	values, err := chindexer.IndexToSlice(index)
-	require.NoError(t, err)
+func insertTestData(t *testing.T, ctx context.Context, conn clickhouse.Conn, index *cloudevent.CloudEventHeader) string {
+	values := chindexer.CloudEventToSlice(index)
 
-	err = conn.Exec(ctx, chindexer.InsertStmt, values...)
+	err := conn.Exec(ctx, chindexer.InsertStmt, values...)
 	require.NoError(t, err)
-	indexkey, err := nameindexer.EncodeIndex(index)
-	require.NoError(t, err)
-	return indexkey
+	return values[len(values)-1].(string)
 }
 
 // TestGetLatestIndexKey tests the GetLatestIndexKey function.
@@ -78,24 +75,24 @@ func TestGetLatestIndexKey(t *testing.T) {
 	now := time.Now()
 
 	// Create test indices
-	eventIdx1 := &nameindexer.Index{
-		Subject: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
+	eventIdx1 := &cloudevent.CloudEventHeader{
+		Subject: cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
-		}),
-		DataType:  dataType,
-		Timestamp: now.Add(-1 * time.Hour),
+		}.String(),
+		DataVersion: dataType,
+		Time:        now.Add(-1 * time.Hour),
 	}
 
-	eventIdx2 := &nameindexer.Index{
-		Subject: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
+	eventIdx2 := &cloudevent.CloudEventHeader{
+		Subject: cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
-		}),
-		DataType:  dataType,
-		Timestamp: now,
+		}.String(),
+		DataVersion: dataType,
+		Time:        now,
 	}
 
 	// Insert test data
@@ -134,7 +131,7 @@ func TestGetLatestIndexKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := &indexrepo.SearchOptions{
 				DataVersion: &dataType,
-				Subject:     &tt.subject,
+				Subject:     ref(tt.subject.String()),
 			}
 			metadata, err := indexService.GetLatestIndex(context.Background(), opts)
 
@@ -159,14 +156,14 @@ func TestGetDataFromIndex(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	eventIdx := &nameindexer.Index{
-		Subject: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
+	eventIdx := &cloudevent.CloudEventHeader{
+		Subject: cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
-		}),
-		DataType:  dataType,
-		Timestamp: time.Now().Add(-1 * time.Hour),
+		}.String(),
+		DataVersion: dataType,
+		Time:        time.Now().Add(-1 * time.Hour),
 	}
 
 	_ = insertTestData(t, ctx, conn, eventIdx)
@@ -199,7 +196,7 @@ func TestGetDataFromIndex(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockS3Client := NewMockObjectGetter(ctrl)
-	content := []byte(`{"data":{"vin": "1HGCM82633A123456"}}`)
+	content := []byte(`{"vin": "1HGCM82633A123456"}`)
 	mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).Return(&s3.GetObjectOutput{
 		Body:          io.NopCloser(bytes.NewReader(content)),
 		ContentLength: ref(int64(len(content))),
@@ -211,7 +208,7 @@ func TestGetDataFromIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := &indexrepo.SearchOptions{
 				DataVersion: &dataType,
-				Subject:     &tt.subject,
+				Subject:     ref(tt.subject.String()),
 			}
 			content, err := indexService.GetLatestCloudEvent(context.Background(), "test-bucket", opts)
 
@@ -219,7 +216,7 @@ func TestGetDataFromIndex(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.EqualValues(t, tt.expectedContent, content.Data)
+				require.EqualValues(t, tt.expectedContent, []byte(content.Data))
 			}
 		})
 	}
@@ -253,13 +250,13 @@ func TestStoreObject(t *testing.T) {
 		},
 		Data: content,
 	}
-	err = indexService.StorePartialCloudEvent(ctx, "test-bucket", event)
+	err = indexService.StoreCloudEvent(ctx, "test-bucket", event)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
 	opts := &indexrepo.SearchOptions{
 		DataVersion: &dataType,
-		Subject:     &did,
+		Subject:     ref(did.String()),
 	}
 	metadata, err := indexService.GetLatestIndex(ctx, opts)
 	require.NoError(t, err)
@@ -287,30 +284,29 @@ func TestGetData(t *testing.T) {
 		ContractAddress: contractAddr,
 		TokenID:         device1TokenID,
 	}
-	eventIdx := nameindexer.Index{
-		Subject:   nameindexer.EncodeNFTDID(eventDID),
-		Timestamp: now.Add(-4 * time.Hour),
+	eventIdx := cloudevent.CloudEventHeader{
+		Subject: eventDID.String(),
+		Time:    now.Add(-4 * time.Hour),
 		Producer: nameindexer.EncodeNFTDID(cloudevent.NFTDID{
 			ChainID:         153,
 			ContractAddress: contractAddr,
 			TokenID:         device1TokenID,
 		}),
-		PrimaryFiller:   nameindexer.CloudTypeToFiller(cloudevent.TypeStatus),
-		Source:          source1.Hex(),
-		DataType:        dataType,
-		SecondaryFiller: "00",
+		Type:        cloudevent.TypeStatus,
+		Source:      source1.Hex(),
+		DataVersion: dataType,
 	}
 	indexKey1 := insertTestData(t, ctx, conn, &eventIdx)
 	eventIdx2 := eventIdx
-	eventIdx2.Timestamp = now.Add(-3 * time.Hour)
+	eventIdx2.Time = now.Add(-3 * time.Hour)
 	indexKey2 := insertTestData(t, ctx, conn, &eventIdx2)
 	eventIdx3 := eventIdx
-	eventIdx3.Timestamp = now.Add(-2 * time.Hour)
-	eventIdx3.PrimaryFiller = "0F"
+	eventIdx3.Time = now.Add(-2 * time.Hour)
+	eventIdx3.Type = cloudevent.TypeFingerprint
 	indexKey3 := insertTestData(t, ctx, conn, &eventIdx3)
 	eventIdx4 := eventIdx
-	eventIdx4.Timestamp = now.Add(-1 * time.Hour)
-	eventIdx4.SecondaryFiller = "55"
+	eventIdx4.Time = now.Add(-1 * time.Hour)
+	eventIdx4.DataContentType = "utf-8"
 	indexKey4 := insertTestData(t, ctx, conn, &eventIdx4)
 
 	tests := []struct {
@@ -323,7 +319,7 @@ func TestGetData(t *testing.T) {
 			name: "valid data with address",
 			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
-				Subject:     &eventDID,
+				Subject:     ref(eventDID.String()),
 			},
 			expectedIndexKeys: []string{indexKey4, indexKey3, indexKey2, indexKey1},
 		},
@@ -331,11 +327,11 @@ func TestGetData(t *testing.T) {
 			name: "no records with address",
 			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
-				Subject: &cloudevent.NFTDID{
+				Subject: ref(cloudevent.NFTDID{
 					ChainID:         153,
 					ContractAddress: contractAddr,
 					TokenID:         device2TokenID,
-				},
+				}.String()),
 			},
 			expectedIndexKeys: nil,
 			expectedError:     true,
@@ -350,7 +346,7 @@ func TestGetData(t *testing.T) {
 			expectedIndexKeys: []string{indexKey4, indexKey3},
 		},
 		{
-			name: "data with primary filler",
+			name: "data with type filter",
 			opts: &indexrepo.SearchOptions{
 				DataVersion: &dataType,
 				Type:        ref(cloudevent.TypeStatus),
@@ -375,23 +371,23 @@ func TestGetData(t *testing.T) {
 				mockS3Client.EXPECT().GetObject(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 					require.Equal(t, *params.Key, indexKey)
 					quotedKey := `"` + indexKey + `"`
-					content := []byte(`{"data":` + quotedKey + `}`)
+					// content := []byte(`{"data":` + quotedKey + `}`)
 					expectedContent = append(expectedContent, []byte(quotedKey))
 					return &s3.GetObjectOutput{
-						Body:          io.NopCloser(bytes.NewReader(content)),
-						ContentLength: ref(int64(len(content))),
+						Body:          io.NopCloser(bytes.NewReader([]byte(quotedKey))),
+						ContentLength: ref(int64(len(quotedKey))),
 					}, nil
 				})
 			}
-			data, err := indexService.ListCloudEvents(context.Background(), "test-bucket", 10, tt.opts)
+			events, err := indexService.ListCloudEvents(context.Background(), "test-bucket", 10, tt.opts)
 
 			if tt.expectedError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Len(t, data, len(expectedContent))
+				require.Len(t, events, len(expectedContent))
 				for i, content := range expectedContent {
-					require.Equal(t, string(content), string(data[i].Data))
+					require.Equal(t, string(content), string(events[i].Data))
 				}
 			}
 		})

@@ -12,11 +12,9 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/DIMO-Network/model-garage/pkg/cloudevent"
-	"github.com/DIMO-Network/nameindexer"
 	chindexer "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/volatiletech/sqlboiler/v4/drivers"
 	"github.com/volatiletech/sqlboiler/v4/queries"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -47,15 +45,10 @@ func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 	}
 }
 
-// GetLatestIndex returns the cloud event index for the latest event that matches the given options.
+// GetLatestIndex returns the latest cloud event index that matches the given options.
 func (s *Service) GetLatestIndex(ctx context.Context, opts *SearchOptions) (CloudEventIndex, error) {
-	return s.GetLatestIndexFromRaw(ctx, opts.ToRawSearchOptions())
-}
-
-// GetLatestIndexFromRaw returns the latest cloud event index that matches the given options.
-func (s *Service) GetLatestIndexFromRaw(ctx context.Context, opts *RawSearchOptions) (CloudEventIndex, error) {
 	opts.TimestampAsc = false
-	events, err := s.ListIndexesFromRaw(ctx, 1, opts)
+	events, err := s.ListIndexes(ctx, 1, opts)
 	if err != nil {
 		return CloudEventIndex{}, err
 	}
@@ -64,11 +57,6 @@ func (s *Service) GetLatestIndexFromRaw(ctx context.Context, opts *RawSearchOpti
 
 // ListIndexes fetches and returns a list of index for cloud events that match the given options.
 func (s *Service) ListIndexes(ctx context.Context, limit int, opts *SearchOptions) ([]CloudEventIndex, error) {
-	return s.ListIndexesFromRaw(ctx, limit, opts.ToRawSearchOptions())
-}
-
-// ListIndexesFromRaw fetches and returns a list of index for cloud events that match the given options.
-func (s *Service) ListIndexesFromRaw(ctx context.Context, limit int, opts *RawSearchOptions) ([]CloudEventIndex, error) {
 	order := " DESC"
 	if opts != nil && opts.TimestampAsc {
 		order = " ASC"
@@ -130,12 +118,7 @@ func (s *Service) ListIndexesFromRaw(ctx context.Context, limit int, opts *RawSe
 
 // ListCloudEvents fetches and returns the cloud events that match the given options.
 func (s *Service) ListCloudEvents(ctx context.Context, bucketName string, limit int, opts *SearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
-	return s.ListCloudEventsFromRaw(ctx, bucketName, limit, opts.ToRawSearchOptions())
-}
-
-// ListCloudEventsFromRaw fetches and returns the cloud events that match the given options.
-func (s *Service) ListCloudEventsFromRaw(ctx context.Context, bucketName string, limit int, opts *RawSearchOptions) ([]cloudevent.CloudEvent[json.RawMessage], error) {
-	events, err := s.ListIndexesFromRaw(ctx, limit, opts)
+	events, err := s.ListIndexes(ctx, limit, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -149,12 +132,7 @@ func (s *Service) ListCloudEventsFromRaw(ctx context.Context, bucketName string,
 
 // GetLatestCloudEvent fetches and returns the latest cloud event that matches the given options.
 func (s *Service) GetLatestCloudEvent(ctx context.Context, bucketName string, opts *SearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
-	return s.GetLatestCloudEventFromRaw(ctx, bucketName, opts.ToRawSearchOptions())
-}
-
-// GetLatestCloudEventFromRaw fetches and returns the latest cloud event that matches the given options.
-func (s *Service) GetLatestCloudEventFromRaw(ctx context.Context, bucketName string, opts *RawSearchOptions) (cloudevent.CloudEvent[json.RawMessage], error) {
-	cloudIdx, err := s.GetLatestIndexFromRaw(ctx, opts)
+	cloudIdx, err := s.GetLatestIndex(ctx, opts)
 	if err != nil {
 		return cloudevent.CloudEvent[json.RawMessage]{}, err
 	}
@@ -229,35 +207,17 @@ func (s *Service) GetObjectFromKey(ctx context.Context, key, bucketName string) 
 
 // StoreCloudEvent stores the given cloud event in S3 and ClickHouse.
 func (s *Service) StoreCloudEvent(ctx context.Context, bucketName string, event cloudevent.CloudEvent[json.RawMessage]) error {
-	index, err := nameindexer.CloudEventToIndex(&event.CloudEventHeader)
-	if err != nil {
-		return fmt.Errorf("failed to convert cloud event to index: %w", err)
-	}
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal cloud event: %w", err)
 	}
-	return s.storeObject(ctx, &index, bucketName, data)
-}
-
-// StorePartialCloudEvent stores the given cloud event in S3 and ClickHouse. Even if some parts are invalid.
-func (s *Service) StorePartialCloudEvent(ctx context.Context, bucketName string, event cloudevent.CloudEvent[json.RawMessage]) error {
-	index := nameindexer.CloudEventToPartialIndex(&event.CloudEventHeader)
-	data, err := json.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("failed to marshal cloud event: %w", err)
-	}
-	return s.storeObject(ctx, &index, bucketName, data)
+	return s.storeObject(ctx, &event.CloudEventHeader, bucketName, data)
 }
 
 // StoreObject stores the given data in S3 with the given index.
-func (s *Service) storeObject(ctx context.Context, index *nameindexer.Index, bucketName string, data []byte) error {
-	key, err := nameindexer.EncodeIndex(index)
-	if err != nil {
-		return fmt.Errorf("failed to encode index: %w", err)
-	}
-
-	_, err = s.objGetter.PutObject(ctx, &s3.PutObjectInput{
+func (s *Service) storeObject(ctx context.Context, cloudHeader *cloudevent.CloudEventHeader, bucketName string, data []byte) error {
+	key := chindexer.CloudEventToKey(cloudHeader)
+	_, err := s.objGetter.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &bucketName,
 		Key:    &key,
 		Body:   bytes.NewReader(data),
@@ -266,10 +226,7 @@ func (s *Service) storeObject(ctx context.Context, index *nameindexer.Index, buc
 		return fmt.Errorf("failed to store object in S3: %w", err)
 	}
 
-	values, err := chindexer.IndexToSlice(index)
-	if err != nil {
-		return fmt.Errorf("failed to convert index to slice: %w", err)
-	}
+	values := chindexer.CloudEventToSlice(cloudHeader)
 
 	err = s.chConn.Exec(ctx, chindexer.InsertStmt, values...)
 	if err != nil {
@@ -279,8 +236,8 @@ func (s *Service) storeObject(ctx context.Context, index *nameindexer.Index, buc
 	return nil
 }
 
-// RawSearchOptions contains options for searching for indexed objects.
-type RawSearchOptions struct {
+// SearchOptions contains options for searching for indexed objects.
+type SearchOptions struct {
 	// After if set only objects after this time are returned.
 	After time.Time
 	// Before if set only objects before this time are returned.
@@ -308,67 +265,7 @@ type RawSearchOptions struct {
 	IndexKey *string
 }
 
-// SearchOptions contains options for searching for indexed objects.
-// Utilizing strict types for the options.
-type SearchOptions struct {
-	// After if set only objects after this time are returned.
-	After time.Time
-	// Before if set only objects before this time are returned.
-	Before time.Time
-	// Subject if set only objects for this subject are returned.
-	Subject *cloudevent.NFTDID
-	// TimestampAsc if set objects are queried and returned in ascending order by timestamp.
-	// This option is not applied for the latest objects query.
-	TimestampAsc bool
-	// Type if not empty cloudevents for this type are returned.
-	Type *string
-	// ID if set only objects with this ID are returned.
-	ID *string
-	// Source is the party responsible for creating the data.
-	Source *common.Address
-	// Producer is the specific source entity that created the data.
-	Producer *cloudevent.NFTDID
-	// DataType if set only objects with a matching data version
-	DataVersion *string
-	// DataContentType is the type of data of this object.
-	DataContentType *string
-	// Extras is the optional data for additional metadata.
-	Extras *string
-	// IndexKey is the key of the backing object for this cloud event.
-	IndexKey *string
-}
-
-func (c *SearchOptions) ToRawSearchOptions() *RawSearchOptions {
-	if c == nil {
-		return nil
-	}
-	opts := &RawSearchOptions{
-		After:           c.After,
-		Before:          c.Before,
-		TimestampAsc:    c.TimestampAsc,
-		Type:            c.Type,
-		ID:              c.ID,
-		DataVersion:     c.DataVersion,
-		DataContentType: c.DataContentType,
-		Extras:          c.Extras,
-		IndexKey:        c.IndexKey,
-	}
-	if c.Subject != nil {
-		subject := nameindexer.EncodeNFTDID(*c.Subject)
-		opts.Subject = &subject
-	}
-	if c.Source != nil {
-		source := nameindexer.EncodeAddress(*c.Source)
-		opts.Source = &source
-	}
-	if c.Producer != nil {
-		producer := nameindexer.EncodeNFTDID(*c.Producer)
-		opts.Producer = &producer
-	}
-	return opts
-}
-
-func (o *RawSearchOptions) QueryMods() ([]qm.QueryMod, error) {
+func (o *SearchOptions) QueryMods() ([]qm.QueryMod, error) {
 	if o == nil {
 		return nil, nil
 	}
