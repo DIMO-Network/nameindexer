@@ -146,7 +146,7 @@ func TestIndexToSlice_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Convert back to slice
-	recoveredSlice, err := UnmarshalIndexSlice(jsonData)
+	recoveredSlice, err := UnmarshalCloudEventSlice(jsonData)
 	require.NoError(t, err)
 
 	// Verify all fields match
@@ -187,9 +187,9 @@ func TestIndexToSliceWithKey_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Convert back to slice
-	recoveredSlice, err := UnmarshalIndexSlice(jsonData)
+	recoveredSlice, err := UnmarshalCloudEventSlice(jsonData)
 	require.NoError(t, err)
 
 	// Verify the key matches
-	assert.Equal(t, key, recoveredSlice[8])
+	assert.Equal(t, key, recoveredSlice[len(recoveredSlice)-1])
 }

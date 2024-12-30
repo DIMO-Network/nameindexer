@@ -51,12 +51,6 @@ const (
 // CloudEventToSlice converts a CloudEvent to an array of any for Clickhouse insertion.
 // The order of the elements in the array match the order of the columns in the table.
 func CloudEventToSlice(event *cloudevent.CloudEventHeader) []any {
-	idx := nameindexer.CloudEventToPartialIndex(event)
-	key, err := nameindexer.EncodeIndex(&idx)
-	if err != nil {
-		// hash header if index key is too long\
-		key = fmt.Sprintf("%s_%s_%s_%s", event.ID, event.Source, event.Time.Format(time.RFC3339), event.Subject)
-	}
 	jsonExtra, _ := json.Marshal(event.Extras)
 	return []any{
 		event.Subject,
@@ -68,8 +62,18 @@ func CloudEventToSlice(event *cloudevent.CloudEventHeader) []any {
 		event.DataContentType,
 		event.DataVersion,
 		string(jsonExtra),
-		key,
+		CloudEventToKey(event),
 	}
+}
+
+func CloudEventToKey(event *cloudevent.CloudEventHeader) string {
+	idx := nameindexer.CloudEventToPartialIndex(event)
+	key, err := nameindexer.EncodeIndex(&idx)
+	if err != nil {
+		// hash header if index key is too long
+		key = fmt.Sprintf("%s_%s_%s_%s", event.ID, event.Source, event.Time.Format(time.RFC3339), event.Subject)
+	}
+	return key
 }
 
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.
