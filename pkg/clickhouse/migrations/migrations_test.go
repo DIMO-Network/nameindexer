@@ -29,21 +29,8 @@ func TestMigration(t *testing.T) {
 	db, err := chcontainer.GetClickhouseAsDB()
 	require.NoError(t, err, "Failed to get clickhouse db")
 
-	err = migrations.RunGoose(ctx, []string{"up-to", "2", "-v"}, db)
-	require.NoError(t, err, "Failed to run migration")
-
 	conn, err := chcontainer.GetClickHouseAsConn()
 	require.NoError(t, err, "Failed to get clickhouse connection")
-
-	oldIdx := &nameindexer.Index{
-		Timestamp:       time.Now(),
-		PrimaryFiller:   "0S",
-		DataType:        "Stat/2.0.0",
-		Subject:         "T000000000000000000000000000000000000003",
-		SecondaryFiller: "00",
-	}
-	err = insesrtOldIndex(conn, oldIdx)
-	require.NoError(t, err, "Failed to insert old index")
 
 	err = migrations.RunGoose(ctx, []string{"up", "-v"}, db)
 	require.NoError(t, err, "Failed to run migration")
@@ -61,18 +48,31 @@ func TestMigration(t *testing.T) {
 	require.NoError(t, err, "Failed to insert new index")
 
 	// Iterate over the rows and check the column names
-	cols, err := getOrderByCols(ctx, conn, localch.TableName)
-	require.NoError(t, err, "Failed to get current columns")
+	cols, err := GetTableCols(ctx, conn, localch.TableName)
+	require.NoError(t, err, "Failed to get Cols columns")
 	expectedCols := []string{
 		localch.SubjectColumn,
 		localch.TimestampColumn,
-		localch.PrimaryFillerColumn,
+		localch.TypeColumn,
+		localch.IDColumn,
 		localch.SourceColumn,
-		localch.DataTypeColumn,
-		localch.SecondaryFillerColumn,
 		localch.ProducerColumn,
+		localch.DataContentTypeColumn,
+		localch.DataVersionColumn,
+		localch.ExtrasColumn,
+		localch.IndexKeyColumn,
 	}
 	assert.ElementsMatch(t, expectedCols, cols, "Columns do not match")
+
+	// Check the order of the columns
+	orderByCols, err := getOrderByCols(ctx, conn, localch.TableName)
+	require.NoError(t, err, "Failed to get order by columns")
+	expectedOrderByCols := []string{
+		localch.SubjectColumn,
+		localch.TimestampColumn,
+		localch.TypeColumn,
+	}
+	assert.ElementsMatch(t, expectedOrderByCols, orderByCols, "Order by columns do not match")
 	// Close the DB connection
 	err = db.Close()
 	assert.NoError(t, err, "Failed to close DB connection")
@@ -90,18 +90,6 @@ func getOrderByCols(ctx context.Context, conn clickhouse.Conn, tableName string)
 	}
 	return strings.Split(sortingKey, ", "), nil
 }
-func insesrtOldIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
-	oldInsertStmt := "INSERT INTO " + localch.TableName + " (" + localch.TimestampColumn + ", " + localch.PrimaryFillerColumn + ", " + localch.DataTypeColumn + ", " + localch.SubjectColumn + ", " + localch.SecondaryFillerColumn + ", " + "file_name" + ") VALUES (?, ?, ?, ?, ?, ?)"
-	indexKey, err := nameindexer.EncodeIndex(index)
-	if err != nil {
-		return fmt.Errorf("failed to encode index: %w", err)
-	}
-	err = conn.Exec(context.Background(), oldInsertStmt, index.Timestamp, index.PrimaryFiller, index.DataType, index.Subject, index.SecondaryFiller, indexKey)
-	if err != nil {
-		return fmt.Errorf("failed to insert old index: %w", err)
-	}
-	return nil
-}
 
 func insertIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
 	values, err := localch.IndexToSlice(index)
@@ -114,4 +102,25 @@ func insertIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
 		return fmt.Errorf("failed to store index in ClickHouse: %w", err)
 	}
 	return nil
+}
+
+func GetTableCols(ctx context.Context, chConn clickhouse.Conn, tableName string) ([]string, error) {
+	selectStm := fmt.Sprintf("SELECT name FROM system.columns where table='%s'", tableName)
+	rows, err := chConn.Query(ctx, selectStm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to show table: %w", err)
+	}
+	defer rows.Close() //nolint // we are not interested in the error here
+	colInfos := []string{}
+	count := 0
+	for rows.Next() {
+		count++
+		var info string
+		err := rows.Scan(&info)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan table: %w", err)
+		}
+		colInfos = append(colInfos, info)
+	}
+	return colInfos, nil
 }
