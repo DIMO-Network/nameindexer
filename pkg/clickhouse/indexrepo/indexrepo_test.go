@@ -260,8 +260,7 @@ func TestStoreObject(t *testing.T) {
 	}
 	metadata, err := indexService.GetLatestIndex(ctx, opts)
 	require.NoError(t, err)
-	idx := nameindexer.CloudEventToPartialIndex(&event.CloudEventHeader)
-	expectedIndexKey, err := nameindexer.EncodeIndex(&idx)
+	expectedIndexKey := nameindexer.CloudEventToIndexKey(&event.CloudEventHeader)
 	require.NoError(t, err)
 	require.Equal(t, expectedIndexKey, metadata.Key)
 }

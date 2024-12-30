@@ -11,7 +11,6 @@ import (
 	"github.com/DIMO-Network/clickhouse-infra/pkg/connect/config"
 	"github.com/DIMO-Network/clickhouse-infra/pkg/container"
 	"github.com/DIMO-Network/model-garage/pkg/cloudevent"
-	"github.com/DIMO-Network/nameindexer"
 	localch "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
 	"github.com/DIMO-Network/nameindexer/pkg/clickhouse/migrations"
 	"github.com/ethereum/go-ethereum/common"
@@ -42,9 +41,7 @@ func TestMigration(t *testing.T) {
 		DataVersion: "Stat/2.0.0",
 		Producer:    cloudevent.NFTDID{ChainID: 3, ContractAddress: common.HexToAddress("0xc57d6d57fca59d0517038c968a1b831b071fa679"), TokenID: 3}.String(),
 	}
-	newIdx, err := nameindexer.CloudEventToIndex(&hdr)
-	require.NoError(t, err, "Failed to convert cloud event to index")
-	err = insertIndex(conn, &newIdx)
+	err = insertIndex(conn, hdr)
 	require.NoError(t, err, "Failed to insert new index")
 
 	// Iterate over the rows and check the column names
@@ -91,13 +88,9 @@ func getOrderByCols(ctx context.Context, conn clickhouse.Conn, tableName string)
 	return strings.Split(sortingKey, ", "), nil
 }
 
-func insertIndex(conn clickhouse.Conn, index *nameindexer.Index) error {
-	values, err := localch.IndexToSlice(index)
-	if err != nil {
-		return fmt.Errorf("failed to convert index to slice: %w", err)
-	}
-
-	err = conn.Exec(context.Background(), localch.InsertStmt, values...)
+func insertIndex(conn clickhouse.Conn, hdr cloudevent.CloudEventHeader) error {
+	values := localch.CloudEventToSlice(&hdr)
+	err := conn.Exec(context.Background(), localch.InsertStmt, values...)
 	if err != nil {
 		return fmt.Errorf("failed to store index in ClickHouse: %w", err)
 	}

@@ -62,18 +62,8 @@ func CloudEventToSlice(event *cloudevent.CloudEventHeader) []any {
 		event.DataContentType,
 		event.DataVersion,
 		string(jsonExtra),
-		CloudEventToKey(event),
+		nameindexer.CloudEventToIndexKey(event),
 	}
-}
-
-func CloudEventToKey(event *cloudevent.CloudEventHeader) string {
-	idx := nameindexer.CloudEventToPartialIndex(event)
-	key, err := nameindexer.EncodeIndex(&idx)
-	if err != nil {
-		// hash header if index key is too long
-		key = fmt.Sprintf("%s_%s_%s_%s", event.ID, event.Source, event.Time.Format(time.RFC3339), event.Subject)
-	}
-	return key
 }
 
 // IndexToSlice converts a Inedx to an array of any for Clickhouse insertion.

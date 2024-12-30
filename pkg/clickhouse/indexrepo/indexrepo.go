@@ -12,6 +12,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/DIMO-Network/model-garage/pkg/cloudevent"
+	"github.com/DIMO-Network/nameindexer"
 	chindexer "github.com/DIMO-Network/nameindexer/pkg/clickhouse"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -216,7 +217,7 @@ func (s *Service) StoreCloudEvent(ctx context.Context, bucketName string, event 
 
 // StoreObject stores the given data in S3 with the given index.
 func (s *Service) storeObject(ctx context.Context, cloudHeader *cloudevent.CloudEventHeader, bucketName string, data []byte) error {
-	key := chindexer.CloudEventToKey(cloudHeader)
+	key := nameindexer.CloudEventToIndexKey(cloudHeader)
 	_, err := s.objGetter.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &bucketName,
 		Key:    &key,
