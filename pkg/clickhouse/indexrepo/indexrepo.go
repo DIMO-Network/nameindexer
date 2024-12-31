@@ -27,8 +27,7 @@ type Service struct {
 	chConn    clickhouse.Conn
 }
 
-type CloudEventIndex struct {
-	cloudevent.CloudEventHeader
+type ObjectInfo struct {
 	Key string
 }
 
@@ -47,17 +46,17 @@ func New(chConn clickhouse.Conn, objGetter ObjectGetter) *Service {
 }
 
 // GetLatestIndex returns the latest cloud event index that matches the given options.
-func (s *Service) GetLatestIndex(ctx context.Context, opts *SearchOptions) (CloudEventIndex, error) {
+func (s *Service) GetLatestIndex(ctx context.Context, opts *SearchOptions) (cloudevent.CloudEvent[ObjectInfo], error) {
 	opts.TimestampAsc = false
 	events, err := s.ListIndexes(ctx, 1, opts)
 	if err != nil {
-		return CloudEventIndex{}, err
+		return cloudevent.CloudEvent[ObjectInfo]{}, err
 	}
 	return events[0], nil
 }
 
 // ListIndexes fetches and returns a list of index for cloud events that match the given options.
-func (s *Service) ListIndexes(ctx context.Context, limit int, opts *SearchOptions) ([]CloudEventIndex, error) {
+func (s *Service) ListIndexes(ctx context.Context, limit int, opts *SearchOptions) ([]cloudevent.CloudEvent[ObjectInfo], error) {
 	order := " DESC"
 	if opts != nil && opts.TimestampAsc {
 		order = " ASC"
@@ -90,22 +89,22 @@ func (s *Service) ListIndexes(ctx context.Context, limit int, opts *SearchOption
 		return nil, fmt.Errorf("failed to get cloud events: %w", err)
 	}
 
-	var cloudEvents []CloudEventIndex
+	var cloudEvents []cloudevent.CloudEvent[ObjectInfo]
 	var extras string
 	for rows.Next() {
-		var eventMeta CloudEventIndex
-		err = rows.Scan(&eventMeta.Subject, &eventMeta.Time, &eventMeta.Type, &eventMeta.ID, &eventMeta.Source, &eventMeta.Producer, &eventMeta.DataContentType, &eventMeta.DataVersion, &extras, &eventMeta.Key)
+		var event cloudevent.CloudEvent[ObjectInfo]
+		err = rows.Scan(&event.Subject, &event.Time, &event.Type, &event.ID, &event.Source, &event.Producer, &event.DataContentType, &event.DataVersion, &extras, &event.Data.Key)
 		if err != nil {
 			_ = rows.Close()
 			return nil, fmt.Errorf("failed to scan cloud event: %w", err)
 		}
 		if extras != "" {
-			if err = json.Unmarshal([]byte(extras), &eventMeta.Extras); err != nil {
+			if err = json.Unmarshal([]byte(extras), &event.Extras); err != nil {
 				_ = rows.Close()
 				return nil, fmt.Errorf("failed to unmarshal extras: %w", err)
 			}
 		}
-		cloudEvents = append(cloudEvents, eventMeta)
+		cloudEvents = append(cloudEvents, event)
 	}
 	_ = rows.Close()
 	if err = rows.Err(); err != nil {
@@ -147,13 +146,13 @@ func (s *Service) GetLatestCloudEvent(ctx context.Context, bucketName string, op
 }
 
 // ListCloudEventsFromIndexes fetches and returns the cloud events for the given index.
-func (s *Service) ListCloudEventsFromIndexes(ctx context.Context, indexes []CloudEventIndex, bucketName string) ([]cloudevent.CloudEvent[json.RawMessage], error) {
+func (s *Service) ListCloudEventsFromIndexes(ctx context.Context, indexes []cloudevent.CloudEvent[ObjectInfo], bucketName string) ([]cloudevent.CloudEvent[json.RawMessage], error) {
 	events := make([]cloudevent.CloudEvent[json.RawMessage], len(indexes))
 	var err error
 	objectsByKeys := map[string][]byte{}
 	for i := range indexes {
 		// Some objects have multiple cloud events so we cache the objects to avoid fetching them multiple times.
-		if obj, ok := objectsByKeys[indexes[i].Key]; ok {
+		if obj, ok := objectsByKeys[indexes[i].Data.Key]; ok {
 			events[i] = cloudevent.CloudEvent[json.RawMessage]{CloudEventHeader: indexes[i].CloudEventHeader, Data: obj}
 			continue
 		}
@@ -161,14 +160,14 @@ func (s *Service) ListCloudEventsFromIndexes(ctx context.Context, indexes []Clou
 		if err != nil {
 			return nil, err
 		}
-		objectsByKeys[indexes[i].Key] = events[i].Data
+		objectsByKeys[indexes[i].Data.Key] = events[i].Data
 	}
 	return events, nil
 }
 
 // GetCloudEventFromIndex fetches and returns the cloud event for the given index.
-func (s *Service) GetCloudEventFromIndex(ctx context.Context, index CloudEventIndex, bucketName string) (cloudevent.CloudEvent[json.RawMessage], error) {
-	rawData, err := s.GetObjectFromKey(ctx, index.Key, bucketName)
+func (s *Service) GetCloudEventFromIndex(ctx context.Context, index cloudevent.CloudEvent[ObjectInfo], bucketName string) (cloudevent.CloudEvent[json.RawMessage], error) {
+	rawData, err := s.GetObjectFromKey(ctx, index.Data.Key, bucketName)
 	if err != nil {
 		return cloudevent.CloudEvent[json.RawMessage]{}, err
 	}

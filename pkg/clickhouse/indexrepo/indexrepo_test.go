@@ -139,7 +139,7 @@ func TestGetLatestIndexKey(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedKey, metadata.Key)
+				require.Equal(t, tt.expectedKey, metadata.Data.Key)
 			}
 		})
 	}
@@ -262,7 +262,7 @@ func TestStoreObject(t *testing.T) {
 	require.NoError(t, err)
 	expectedIndexKey := nameindexer.CloudEventToIndexKey(&event.CloudEventHeader)
 	require.NoError(t, err)
-	require.Equal(t, expectedIndexKey, metadata.Key)
+	require.Equal(t, expectedIndexKey, metadata.Data.Key)
 }
 
 // TestGetData tests the GetData function with different SearchOptions combinations.
