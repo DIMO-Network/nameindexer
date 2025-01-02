@@ -51,6 +51,12 @@ const (
 // CloudEventToSlice converts a CloudEvent to an array of any for Clickhouse insertion.
 // The order of the elements in the array match the order of the columns in the table.
 func CloudEventToSlice(event *cloudevent.CloudEventHeader) []any {
+	return CloudEventToSliceWithKey(event, nameindexer.CloudEventToIndexKey(event))
+}
+
+// CloudEventToSlice converts a CloudEvent to an array of any for Clickhouse insertion.
+// The order of the elements in the array match the order of the columns in the table.
+func CloudEventToSliceWithKey(event *cloudevent.CloudEventHeader, key string) []any {
 	jsonExtra, _ := json.Marshal(event.Extras)
 	return []any{
 		event.Subject,
@@ -62,7 +68,7 @@ func CloudEventToSlice(event *cloudevent.CloudEventHeader) []any {
 		event.DataContentType,
 		event.DataVersion,
 		string(jsonExtra),
-		nameindexer.CloudEventToIndexKey(event),
+		key,
 	}
 }
 
