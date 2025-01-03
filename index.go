@@ -200,6 +200,7 @@ func getNextPart(encodedIndex string, start, offset int) (string, int) {
 // EncodeDataType pads the data type with `*` if shorter than required.
 // It truncates the data type if longer than required.
 func EncodeDataType(dataType string) string {
+	dataType = strings.ReplaceAll(dataType, "/", "_")
 	// Validate data type length
 	if len(dataType) > DataTypeLength {
 		// truncate data type if longer than required

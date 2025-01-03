@@ -50,51 +50,10 @@ func FillerToCloudType(filler string) string {
 	}
 }
 
-// EncodeCloudEvent encodes a CloudEventHeader into a encoded indexable string.
-func EncodeCloudEvent(cloudEvent *cloudevent.CloudEventHeader) (string, error) {
-	index, err := CloudEventToIndex(cloudEvent)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert cloud event to index: %w", err)
-	}
-	return EncodeIndex(&index)
-}
-
-// CloudEventToIndex converts a CloudEventHeader to a CloudEventIndex.
-func CloudEventToIndex(cloudEvent *cloudevent.CloudEventHeader) (Index, error) {
-	subjectDID, err := cloudevent.DecodeNFTDID(cloudEvent.Subject)
-	if err != nil {
-		return Index{}, fmt.Errorf("subject is not a valid NFT DID: %w", err)
-	}
-	producerDID, err := cloudevent.DecodeNFTDID(cloudEvent.Producer)
-	if err != nil {
-		return Index{}, fmt.Errorf("producer is not a valid NFT DID: %w", err)
-	}
-	sourceAddr, err := DecodeAddress(cloudEvent.Source)
-	if err != nil {
-		return Index{}, fmt.Errorf("source is not valid: %w", err)
-	}
-	if err := ValidateDate(cloudEvent.Time); err != nil {
-		return Index{}, err
-	}
-
-	index := Index{
-		Subject:       EncodeNFTDID(subjectDID),
-		Timestamp:     cloudEvent.Time,
-		PrimaryFiller: CloudTypeToFiller(cloudEvent.Type),
-		Source:        EncodeAddress(sourceAddr),
-		DataType:      cloudEvent.DataVersion,
-		Producer:      EncodeNFTDID(producerDID),
-	}
-	return index, nil
-}
-
-// CloudEventToPartialIndex converts a CloudEventHeader to a partial Index.
-// This function is similar to CloudEventToCloudIndex, but it will not return an error if any parts are invalid.
-func CloudEventToPartialIndex(cloudHdr *cloudevent.CloudEventHeader) Index {
+// CloudEventToIndex converts a CloudEventHeader to a Index.
+func CloudEventToIndexKey(cloudHdr *cloudevent.CloudEventHeader) string {
 	if cloudHdr == nil {
-		return Index{
-			Timestamp: time.Now(),
-		}
+		return ""
 	}
 	timestamp := cloudHdr.Time
 	if err := ValidateDate(timestamp); err != nil {
@@ -115,14 +74,18 @@ func CloudEventToPartialIndex(cloudHdr *cloudevent.CloudEventHeader) Index {
 	if err == nil {
 		source = EncodeAddress(sourceAddr)
 	}
-	return Index{
+	key, err := EncodeIndex(&Index{
 		Subject:       subject,
 		Timestamp:     timestamp,
 		PrimaryFiller: CloudTypeToFiller(cloudHdr.Type),
 		Source:        source,
 		DataType:      cloudHdr.DataVersion,
 		Producer:      producer,
+	})
+	if err != nil {
+		return fmt.Sprintf("%s_%s_%s_%s", cloudHdr.ID, cloudHdr.Source, cloudHdr.Time.Format(time.RFC3339), cloudHdr.Subject)
 	}
+	return key
 }
 
 // EncodeAddress encodes an ethereum address without the 0x prefix.
