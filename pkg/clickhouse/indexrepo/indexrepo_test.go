@@ -250,7 +250,7 @@ func TestStoreObject(t *testing.T) {
 		},
 		Data: content,
 	}
-	err = indexService.StoreCloudEvent(ctx, "test-bucket", event)
+	err = indexService.StoreObject(ctx, "test-bucket", &event.CloudEventHeader, event.Data)
 	require.NoError(t, err)
 
 	// Verify the data is stored in ClickHouse
