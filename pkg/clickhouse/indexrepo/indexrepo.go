@@ -205,17 +205,8 @@ func (s *Service) GetObjectFromKey(ctx context.Context, key, bucketName string) 
 	return data, nil
 }
 
-// StoreCloudEvent stores the given cloud event in S3 and ClickHouse.
-func (s *Service) StoreCloudEvent(ctx context.Context, bucketName string, event cloudevent.CloudEvent[json.RawMessage]) error {
-	data, err := json.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("failed to marshal cloud event: %w", err)
-	}
-	return s.storeObject(ctx, &event.CloudEventHeader, bucketName, data)
-}
-
-// StoreObject stores the given data in S3 with the given index.
-func (s *Service) storeObject(ctx context.Context, cloudHeader *cloudevent.CloudEventHeader, bucketName string, data []byte) error {
+// StoreObject stores the given data in S3 with the given cloudevent header.
+func (s *Service) StoreObject(ctx context.Context, bucketName string, cloudHeader *cloudevent.CloudEventHeader, data []byte) error {
 	key := nameindexer.CloudEventToIndexKey(cloudHeader)
 	_, err := s.objGetter.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &bucketName,
