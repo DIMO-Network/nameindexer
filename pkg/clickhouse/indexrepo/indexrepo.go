@@ -171,7 +171,7 @@ func (s *Service) GetCloudEventFromIndex(ctx context.Context, index cloudevent.C
 	if err != nil {
 		return cloudevent.CloudEvent[json.RawMessage]{}, err
 	}
-	return cloudevent.CloudEvent[json.RawMessage]{CloudEventHeader: index.CloudEventHeader, Data: rawData}, nil
+	return toCloudEvent(&index.CloudEventHeader, rawData), nil
 }
 
 // ListObjectsFromKeys fetches and returns the objects for the given keys.
@@ -225,6 +225,20 @@ func (s *Service) StoreObject(ctx context.Context, bucketName string, cloudHeade
 	}
 
 	return nil
+}
+
+// toCloudEvent converts the given data to a cloud event with the given header
+// if the provided data is already a cloud event we will replace the header with the given one.
+func toCloudEvent(dbHdr *cloudevent.CloudEventHeader, data []byte) cloudevent.CloudEvent[json.RawMessage] {
+	retData := data
+	event := cloudevent.CloudEvent[json.RawMessage]{}
+	err := json.Unmarshal(data, &event)
+	emptyHdr := cloudevent.CloudEventHeader{}
+	if err == nil && !event.CloudEventHeader.Equals(emptyHdr) {
+		// if the data is already a cloud event we use the embedded data field
+		retData = event.Data
+	}
+	return cloudevent.CloudEvent[json.RawMessage]{CloudEventHeader: *dbHdr, Data: retData}
 }
 
 // SearchOptions contains options for searching for indexed objects.
