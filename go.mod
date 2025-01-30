@@ -8,7 +8,7 @@ require (
 	github.com/DIMO-Network/model-garage v0.4.5
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.71.1
-	github.com/ethereum/go-ethereum v1.14.12
+	github.com/ethereum/go-ethereum v1.14.13
 	github.com/pressly/goose/v3 v3.24.0
 	github.com/stretchr/testify v1.10.0
 	github.com/volatiletech/sqlboiler/v4 v4.17.1
